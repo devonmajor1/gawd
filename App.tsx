@@ -3,6 +3,8 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { StatusBar } from 'expo-status-bar';
 import { StyleSheet, Text, View, TouchableOpacity, SafeAreaView } from 'react-native';
 import AuthScreen from './screens/AuthScreen';
+import NewPickupScreen from './screens/NewPickupScreen';
+import CreateJobScreen from './screens/CreateJobScreen';
 import { AuthProvider, useAuth } from './contexts/AuthProvider';
 import React from 'react';
 import { supabase } from './lib/supabase';
@@ -13,6 +15,16 @@ type RootStackParamList = {
   Home: undefined;
   Details: { itemId: number };
   NewPickup: undefined;
+  CreateJob: undefined;
+  PickupConfirmation: {
+    details: {
+      pickupLocation: string;
+      contactName: string;
+      contactPhone: string;
+      itemDescription: string;
+      specialInstructions: string;
+    };
+  };
   DocumentLoad: undefined;
   ReportIssue: undefined;
   JobDetails: undefined;
@@ -29,6 +41,7 @@ function HomeScreen({ navigation }: any) {
 
   const QUICK_ACTIONS = [
     { title: 'Start New Pickup', icon: '🚚', route: 'NewPickup', primary: true },
+    { title: 'Create Job', icon: '📝', route: 'CreateJob', primary: true },
     { title: 'Document Load', icon: '📄', route: 'DocumentLoad' },
     { title: 'Report Issue', icon: '⚠️', route: 'ReportIssue' },
     { title: 'View Job Details', icon: '📋', route: 'JobDetails' },
@@ -103,11 +116,29 @@ function Navigation() {
               options={{ headerShown: false }} 
             />
             <Stack.Screen 
+              name="CreateJob" 
+              component={CreateJobScreen}
+              options={{ 
+                headerShown: true,
+                headerTitle: "Create New Job",
+                headerBackTitle: "Back"
+              }} 
+            />
+            <Stack.Screen 
               name="NewPickup" 
-              component={PlaceholderScreen}
+              component={NewPickupScreen}
               options={{ 
                 headerShown: true,
                 headerTitle: "New Pickup",
+                headerBackTitle: "Back"
+              }} 
+            />
+            <Stack.Screen 
+              name="PickupConfirmation" 
+              component={PlaceholderScreen}
+              options={{ 
+                headerShown: true,
+                headerTitle: "Confirmation",
                 headerBackTitle: "Back"
               }} 
             />
