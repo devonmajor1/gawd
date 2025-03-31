@@ -1,17 +1,20 @@
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, Text, View, TouchableOpacity, SafeAreaView } from 'react-native';
+import { StyleSheet, Text, View, TouchableOpacity, SafeAreaView, ActivityIndicator, Alert, Platform } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import AuthScreen from './screens/AuthScreen';
 import NewPickupScreen from './screens/NewPickupScreen';
 import CreateJobScreen from './screens/CreateJobScreen';
+import CompleteProfileScreen from './screens/CompleteProfileScreen';
 import { AuthProvider, useAuth } from './contexts/AuthProvider';
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { supabase } from './lib/supabase';
 
 // Define our navigation types
 type RootStackParamList = {
   Auth: undefined;
+  CompleteProfile: undefined;
   Home: undefined;
   Details: { itemId: number };
   NewPickup: undefined;
@@ -35,8 +38,39 @@ const Stack = createNativeStackNavigator<RootStackParamList>();
 // Home screen component
 function HomeScreen({ navigation }: any) {
   const handleSignOut = async () => {
-    await supabase.auth.signOut();
-    navigation.replace('Auth');
+    console.log("HomeScreen: Signing out...");
+    const { error } = await supabase.auth.signOut();
+    if (error) {
+      console.error("HomeScreen: Sign out error", error);
+      Alert.alert("Error", "Failed to sign out.");
+    }
+    // AuthProvider's onAuthStateChange will handle navigation update
+  };
+
+  // Function to manually update profile to ensure column exists
+  const fixProfiles = async () => {
+    try {
+      Alert.alert("Fixing profiles", "Attempting to ensure completed_profile column exists...");
+      
+      const { error: updateError } = await supabase
+        .from('profiles')
+        .update({ 
+          completed_profile: true,
+          updated_at: new Date().toISOString()
+        })
+        .not('first_name', 'is', null)
+        .not('last_name', 'is', null);
+        
+      if (updateError) {
+        console.error('Error updating profiles:', updateError);
+        Alert.alert("Error", `Failed to update profiles: ${updateError.message}`);
+      } else {
+        Alert.alert("Success", "Profiles updated. Restart app to apply changes.");
+      }
+    } catch (error: any) {
+      console.error('Unexpected error fixing profiles:', error);
+      Alert.alert("Error", error.message || "An unexpected error occurred");
+    }
   };
 
   const QUICK_ACTIONS = [
@@ -48,9 +82,9 @@ function HomeScreen({ navigation }: any) {
   ];
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.containerHome}>
       <View style={styles.header}>
-        <Text style={styles.title}>Quick Actions</Text>
+        <Text style={styles.titleHome}>Quick Actions</Text>
         <TouchableOpacity onPress={handleSignOut}>
           <Text style={styles.signOut}>Sign Out</Text>
         </TouchableOpacity>
@@ -71,6 +105,13 @@ function HomeScreen({ navigation }: any) {
           </TouchableOpacity>
         ))}
       </View>
+      
+      {/* Developer tools - you can remove this in production */}
+      <View style={styles.developerTools}>
+        <TouchableOpacity style={styles.developerButton} onPress={fixProfiles}>
+          <Text style={styles.developerButtonText}>Fix Profile DB</Text>
+        </TouchableOpacity>
+      </View>
     </SafeAreaView>
   );
 }
@@ -79,106 +120,265 @@ function HomeScreen({ navigation }: any) {
 function DetailsScreen({ route }: any) {
   const { itemId } = route.params;
   return (
-    <View style={styles.container}>
+    <View style={styles.containerCenter}>
       <Text style={styles.title}>Details Screen</Text>
       <Text>Item ID: {itemId}</Text>
     </View>
   );
 }
 
-function PlaceholderScreen() {
+// Generic Placeholder Screen 
+function PlaceholderScreen({route}: any) {
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Placeholder Screen</Text>
+    <View style={styles.containerCenter}>
+      <Text style={styles.title}>{route.name}</Text>
     </View>
   );
 }
 
 function Navigation() {
-  const { session, loading } = useAuth();
+  // Get state from AuthProvider
+  const { session, user, profile, loading, refreshProfile } = useAuth();
+  const [hasCompletedProfileBefore, setHasCompletedProfileBefore] = useState<boolean>(false);
+  const [loadingTimeout, setLoadingTimeout] = useState<boolean>(false);
 
-  if (loading) {
+  // Set a timeout to force proceed to main screen if loading takes too long
+  useEffect(() => {
+    let timeoutId: NodeJS.Timeout;
+    if (loading && session) {
+      // If we've been loading for more than 3 seconds with a valid session,
+      // assume the profile should be complete and proceed to main screen
+      timeoutId = setTimeout(() => {
+        console.log('Navigation: Loading timeout exceeded, forcing proceed to main screen');
+        setLoadingTimeout(true);
+      }, 3000);
+    }
+    
+    return () => {
+      if (timeoutId) clearTimeout(timeoutId);
+    };
+  }, [loading, session]);
+
+  // Determine if profile exists and has been completed before
+  // This check runs AFTER session is confirmed
+  // If completed_profile flag exists, use it, otherwise fall back to checking first/last name
+  // This handles both new users with the flag and existing users who completed their profile before the flag was added
+  const hasCompletedProfile = !!profile?.completed_profile;
+  const hasFirstLastName = !!profile?.first_name && !!profile?.last_name;
+  const isProfileComplete = hasCompletedProfile || hasFirstLastName || hasCompletedProfileBefore || loadingTimeout;
+
+  console.log(`Navigation Check: Loading=${loading}, Session=${!!session}, User=${!!user}, ProfileComplete=${isProfileComplete}, HasNames=${hasFirstLastName}, CompletedProfileFlag=${hasCompletedProfile}, StoredFlag=${hasCompletedProfileBefore}, TimeoutOverride=${loadingTimeout}`);
+
+  // Check local storage for completed profile flag on initial render
+  useEffect(() => {
+    const checkStoredProfileCompletion = async () => {
+      if (session?.user && !isProfileComplete) { // Only check if not already complete
+        try {
+          const storedValue = await AsyncStorage.getItem(`profile_completed_${session.user.id}`);
+          if (storedValue === 'true') {
+            console.log('Navigation: Found stored profile completion flag');
+            setHasCompletedProfileBefore(true);
+          }
+        } catch (error) {
+          console.error('Error checking stored profile completion:', error);
+        }
+      }
+    };
+    
+    checkStoredProfileCompletion();
+  }, [session, isProfileComplete]); // Added isProfileComplete dependency
+
+  // When profile is detected as complete, store that in AsyncStorage
+  useEffect(() => {
+    const storeProfileCompletion = async () => {
+      if (session?.user && (hasCompletedProfile || hasFirstLastName) && !hasCompletedProfileBefore) {
+        try {
+          console.log('Navigation: Storing profile completion flag');
+          await AsyncStorage.setItem(`profile_completed_${session.user.id}`, 'true');
+          setHasCompletedProfileBefore(true); // Update local state too
+        } catch (error) {
+          console.error('Error storing profile completion:', error);
+        }
+      }
+    };
+    
+    storeProfileCompletion();
+  }, [session, hasCompletedProfile, hasFirstLastName, hasCompletedProfileBefore]); // Added hasCompletedProfileBefore
+
+  // Auto-update existing profiles that have names but don't have the completed_profile flag
+  useEffect(() => {
+    const updateExistingProfile = async () => {
+      // Only run for authenticated users with a profile that has names but no completed_profile flag
+      if (session?.user && profile && hasFirstLastName && !hasCompletedProfile) {
+        console.log('Navigation: Updating existing profile to set completed_profile flag');
+        
+        try {
+          const { error } = await supabase.from('profiles').update({ 
+            completed_profile: true,
+            updated_at: new Date().toISOString()
+          }).eq('id', session.user.id);
+          
+          if (error) {
+            console.error('Error updating existing profile:', error);
+          } else {
+            console.log('Successfully updated existing profile with completed_profile flag');
+            // We don't need to refresh the profile immediately - just set the local flag
+            // This avoids a redundant database call that would slow down loading
+            setHasCompletedProfileBefore(true);
+            
+            // Refresh the profile in the background after a small delay
+            setTimeout(() => {
+              refreshProfile?.();
+            }, 500);
+          }
+        } catch (err) {
+          console.error('Unexpected error updating profile:', err);
+        }
+      }
+    };
+    
+    updateExistingProfile();
+  }, [session, profile, hasFirstLastName, hasCompletedProfile, refreshProfile]);
+
+  // Show loading indicator while AuthProvider is initializing
+  // But don't show it for more than 5 seconds
+  const [showLoadingTooLong, setShowLoadingTooLong] = useState(false);
+  
+  useEffect(() => {
+    let timeoutId: NodeJS.Timeout;
+    if (loading) {
+      timeoutId = setTimeout(() => {
+        setShowLoadingTooLong(true);
+      }, 5000);
+    } else {
+      setShowLoadingTooLong(false);
+    }
+    
+    return () => {
+      if (timeoutId) clearTimeout(timeoutId);
+    };
+  }, [loading]);
+  
+  if (loading && !showLoadingTooLong) {
     return (
-      <View style={styles.container}>
-        <Text>Loading...</Text>
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#0000ff" />
       </View>
+    );
+  }
+  
+  // If loading takes too long, show a message but proceed with navigation
+  if (loading && showLoadingTooLong) {
+    // Display a brief loading message but continue with navigation
+    Alert.alert(
+      "Still Working", 
+      "Taking longer than expected, but you can continue using the app.",
+      [{ text: "OK" }]
+    );
+    // Fall through to navigation logic
+  }
+
+  // Determine which stack of screens to show
+  let stackToShow;
+  if (session && user) {
+    // User is logged in (session exists)
+    if (isProfileComplete) {
+      // Logged in AND profile is complete -> Show Main App
+      console.log("Navigation: Rendering Main App Stack");
+      stackToShow = (
+        <React.Fragment>
+          <Stack.Screen name="Home" component={HomeScreen} options={{ headerShown: false }} />
+          <Stack.Screen name="CreateJob" component={CreateJobScreen} options={{ headerShown: true, headerTitle: "Create New Job", headerBackTitle: "Back" }} />
+          <Stack.Screen name="NewPickup" component={NewPickupScreen} options={{ headerShown: true, headerTitle: "New Pickup", headerBackTitle: "Back" }} />
+          <Stack.Screen name="PickupConfirmation" component={PlaceholderScreen} options={{ headerShown: true, headerTitle: "Confirmation", headerBackTitle: "Back" }} />
+          <Stack.Screen name="DocumentLoad" component={PlaceholderScreen} options={{ headerShown: true, headerTitle: "Document Load", headerBackTitle: "Back" }} />
+          <Stack.Screen name="ReportIssue" component={PlaceholderScreen} options={{ headerShown: true, headerTitle: "Report Issue", headerBackTitle: "Back" }} />
+          <Stack.Screen name="JobDetails" component={PlaceholderScreen} options={{ headerShown: true, headerTitle: "Job Details", headerBackTitle: "Back" }} />
+        </React.Fragment>
+      );
+    } else {
+      // Logged in BUT profile is INCOMPLETE -> Show Complete Profile Screen
+      console.log("Navigation: Rendering Complete Profile Screen");
+      stackToShow = (
+        <Stack.Screen name="CompleteProfile" component={CompleteProfileScreen} options={{ headerShown: false }} />
+      );
+    }
+  } else {
+    // No session OR no user -> Show Auth Screen
+    console.log("Navigation: Rendering Auth Screen");
+    stackToShow = (
+      <Stack.Screen name="Auth" component={AuthScreen} options={{ headerShown: false }} />
     );
   }
 
   return (
     <NavigationContainer>
       <Stack.Navigator>
-        {session ? (
-          <React.Fragment>
-            <Stack.Screen 
-              name="Home" 
-              component={HomeScreen} 
-              options={{ headerShown: false }} 
-            />
-            <Stack.Screen 
-              name="CreateJob" 
-              component={CreateJobScreen}
-              options={{ 
-                headerShown: true,
-                headerTitle: "Create New Job",
-                headerBackTitle: "Back"
-              }} 
-            />
-            <Stack.Screen 
-              name="NewPickup" 
-              component={NewPickupScreen}
-              options={{ 
-                headerShown: true,
-                headerTitle: "New Pickup",
-                headerBackTitle: "Back"
-              }} 
-            />
-            <Stack.Screen 
-              name="PickupConfirmation" 
-              component={PlaceholderScreen}
-              options={{ 
-                headerShown: true,
-                headerTitle: "Confirmation",
-                headerBackTitle: "Back"
-              }} 
-            />
-            <Stack.Screen 
-              name="DocumentLoad" 
-              component={PlaceholderScreen}
-              options={{ 
-                headerShown: true,
-                headerTitle: "Document Load",
-                headerBackTitle: "Back"
-              }} 
-            />
-            <Stack.Screen 
-              name="ReportIssue" 
-              component={PlaceholderScreen}
-              options={{ 
-                headerShown: true,
-                headerTitle: "Report Issue",
-                headerBackTitle: "Back"
-              }} 
-            />
-            <Stack.Screen 
-              name="JobDetails" 
-              component={PlaceholderScreen}
-              options={{ 
-                headerShown: true,
-                headerTitle: "Job Details",
-                headerBackTitle: "Back"
-              }} 
-            />
-          </React.Fragment>
-        ) : (
-          <Stack.Screen name="Auth" component={AuthScreen} options={{ headerShown: false }} />
-        )}
+        {stackToShow}
       </Stack.Navigator>
     </NavigationContainer>
   );
 }
 
 export default function App() {
+  // Handle page refresh for web
+  useEffect(() => {
+    if (Platform.OS === 'web') {
+      // Handle refresh
+      const handleRefresh = () => {
+        console.log('App: Page refresh detected, preparing...');
+        
+        // Cache critical auth data to localStorage for persistence
+        // This is a backup for the mechanisms in AuthProvider
+        try {
+          // Attempt to get the last auth value
+          AsyncStorage.getItem('supabase.auth.token')
+            .then(value => {
+              if (value) {
+                // Store to localStorage as a backup
+                localStorage.setItem('auth_backup', value);
+                console.log('App: Stored auth backup for refresh recovery');
+              }
+            })
+            .catch(e => console.error('App: Error backing up auth data', e));
+        } catch (e) {
+          console.error('App: Error in refresh handler', e);
+        }
+      };
+      
+      // For page refreshes
+      window.addEventListener('beforeunload', handleRefresh);
+      
+      return () => {
+        window.removeEventListener('beforeunload', handleRefresh);
+      };
+    }
+    return () => {};
+  }, []);
+  
+  // For session recovery on init
+  useEffect(() => {
+    if (Platform.OS === 'web') {
+      try {
+        // Check if we have a backup auth value
+        const backupAuth = localStorage.getItem('auth_backup');
+        if (backupAuth) {
+          console.log('App: Found auth backup, attempting recovery');
+          // Restore it to AsyncStorage
+          AsyncStorage.setItem('supabase.auth.token', backupAuth)
+            .then(() => {
+              console.log('App: Restored auth data from backup');
+              // Clear the backup
+              localStorage.removeItem('auth_backup');
+            })
+            .catch(e => console.error('App: Error restoring auth data', e));
+        }
+      } catch (e) {
+        console.error('App: Error checking auth backup', e);
+      }
+    }
+  }, []);
+  
   return (
     <AuthProvider>
       <Navigation />
@@ -187,7 +387,17 @@ export default function App() {
 }
 
 const styles = StyleSheet.create({
-  container: {
+  containerCenter: {
+    flex: 1,
+    backgroundColor: '#fff',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  containerHome: {
+    flex: 1,
+    backgroundColor: '#f8f9fa',
+  },
+  loadingContainer: {
     flex: 1,
     backgroundColor: '#fff',
     alignItems: 'center',
@@ -197,6 +407,59 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: 'bold',
     marginBottom: 20,
+    textAlign: 'center'
+  },
+  titleHome: {
+    fontSize: 24,
+    fontWeight: 'bold',
+  },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 16,
+    backgroundColor: 'white',
+    borderBottomWidth: 1,
+    borderBottomColor: '#eee',
+  },
+  signOut: {
+    color: '#007AFF',
+    fontSize: 16,
+  },
+  grid: {
+    padding: 16,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+  },
+  actionButton: {
+    width: '48%',
+    aspectRatio: 1,
+    backgroundColor: 'white',
+    borderRadius: 12,
+    padding: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  primaryButton: {
+    backgroundColor: '#e7f3ff',
+    borderColor: '#007AFF',
+    borderWidth: 1,
+  },
+  actionIcon: {
+    fontSize: 32,
+    marginBottom: 8,
+  },
+  actionTitle: {
+    fontSize: 14,
+    textAlign: 'center',
+    fontWeight: '500',
   },
   button: {
     backgroundColor: '#007AFF',
@@ -206,46 +469,23 @@ const styles = StyleSheet.create({
   buttonText: {
     color: 'white',
     fontSize: 16,
+    fontWeight: 'bold',
   },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+  developerTools: {
     padding: 16,
-  },
-  signOut: {
-    color: '#007AFF',
-  },
-  grid: {
-    padding: 16,
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 16,
-  },
-  actionButton: {
-    width: '47%',
-    aspectRatio: 1,
     backgroundColor: 'white',
-    borderRadius: 12,
-    padding: 16,
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    borderTopWidth: 1,
+    borderTopColor: '#eee',
   },
-  primaryButton: {
+  developerButton: {
     backgroundColor: '#007AFF',
+    padding: 15,
+    borderRadius: 8,
+    alignItems: 'center',
   },
-  actionIcon: {
-    fontSize: 32,
-    marginBottom: 8,
-  },
-  actionTitle: {
+  developerButtonText: {
+    color: 'white',
     fontSize: 16,
-    textAlign: 'center',
-    fontWeight: '500',
+    fontWeight: 'bold',
   },
 });
