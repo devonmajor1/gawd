@@ -20,12 +20,14 @@ const AuthContext = createContext<{
   profile: Profile | null; // Add profile state
   loading: boolean;
   refreshProfile: (() => Promise<void>) | null; // Function to refresh profile
+  isAdmin: boolean; // Re-adding isAdmin - Ensure it's implemented
 }>({
   session: null,
   user: null,
   profile: null,
   loading: true,
   refreshProfile: null,
+  isAdmin: false, // Default value
 });
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -35,6 +37,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true); // Overall loading including initial profile fetch
   const [profileLoading, setProfileLoading] = useState(false); // Specific loading for profile fetch
   const [initError, setInitError] = useState<string | null>(null); // Track initialization errors
+  const [isAdmin, setIsAdmin] = useState<boolean>(false); // Add isAdmin state
+
+  // State declarations
+  const [generatorName, setGeneratorName] = useState('');
+  const [generatorPhone, setGeneratorPhone] = useState('');
+  const [generatorEmail, setGeneratorEmail] = useState('');
+
+  const [pickupAddress, setPickupAddress] = useState('');
+  const [pickupCity, setPickupCity] = useState('');
+  const [pickupProvince, setPickupProvince] = useState('');
+  const [pickupPostalCode, setPickupPostalCode] = useState('');
+
+  const [receiverCompany, setReceiverCompany] = useState('');
+  const [receiverAddress, setReceiverAddress] = useState('');
+  const [receiverCity, setReceiverCity] = useState('');
+  const [receiverProvince, setReceiverProvince] = useState('');
+  const [receiverPostalCode, setReceiverPostalCode] = useState('');
 
   // Function to fetch profile
   const fetchProfile = useCallback(async (currentUser: User | null) => {
@@ -552,8 +571,98 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // Log the state being provided
   console.log(`AuthProvider: Rendering context. session=${!!session}, user=${!!user}, profile=${!!profile}, loading=${loading}, profileLoading=${profileLoading}, combinedLoading=${combinedLoading}, initError=${!!initError}`);
 
+  const handleSaveJob = async () => {
+    if (!validateForm()) {
+      alert('Please fill in all required fields');
+      return;
+    }
+    
+    setLoading(true);
+    
+    try {
+      // First create the job
+      const { data: jobData, error: jobError } = await supabase
+        .from('jobs')
+        .insert({
+          title: `Job for ${receiverCompany}`,
+          description: `Transportation from ${pickupCity} to ${receiverCity}`,
+          status: 'draft',
+          created_by: session?.user.id // Check for null session
+        })
+        .select()
+        .single();
+        
+      if (jobError) throw jobError;
+      
+      // Insert generator info
+      const { error: generatorError } = await supabase
+        .from('job_generators')
+        .insert({
+          job_id: jobData.id,
+          contact_name: generatorName,
+          telephone: generatorPhone,
+          email: generatorEmail
+        });
+        
+      if (generatorError) throw generatorError;
+      
+      // Insert pickup location
+      const { error: pickupError } = await supabase
+        .from('pickup_locations')
+        .insert({
+          job_id: jobData.id,
+          address: pickupAddress,
+          city: pickupCity,
+          province: pickupProvince,
+          postal_code: pickupPostalCode
+        });
+        
+      if (pickupError) throw pickupError;
+      
+      // Insert receiver info
+      const { error: receiverError } = await supabase
+        .from('job_receivers')
+        .insert({
+          job_id: jobData.id,
+          company_name: receiverCompany,
+          address: receiverAddress,
+          city: receiverCity,
+          province: receiverProvince,
+          postal_code: receiverPostalCode
+        });
+        
+      if (receiverError) throw receiverError;
+      
+      // Success! Show message and navigate back
+      alert('Job created successfully!');
+      
+    } catch (error: any) {
+      console.error('Error creating job:', error);
+      alert(`Error creating job: ${error.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const validateForm = () => {
+    // Check all required fields
+    return (
+      generatorName && 
+      generatorPhone && 
+      pickupAddress && 
+      pickupCity && 
+      pickupProvince && 
+      pickupPostalCode && 
+      receiverCompany && 
+      receiverAddress && 
+      receiverCity && 
+      receiverProvince && 
+      receiverPostalCode
+    );
+  };
+
   return (
-    <AuthContext.Provider value={{ session, user, profile, loading: combinedLoading, refreshProfile }}>
+    <AuthContext.Provider value={{ session, user, profile, loading, refreshProfile, isAdmin }}>
       {children}
     </AuthContext.Provider>
   );

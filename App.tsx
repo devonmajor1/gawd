@@ -7,6 +7,8 @@ import AuthScreen from './screens/AuthScreen';
 import NewPickupScreen from './screens/NewPickupScreen';
 import CreateJobScreen from './screens/CreateJobScreen';
 import CompleteProfileScreen from './screens/CompleteProfileScreen';
+import AdminJobStatusScreen from './screens/AdminJobStatusScreen';
+import HomeScreen from './screens/HomeScreen';
 import { AuthProvider, useAuth } from './contexts/AuthProvider';
 import React, { useEffect, useState } from 'react';
 import { supabase } from './lib/supabase';
@@ -31,90 +33,10 @@ type RootStackParamList = {
   DocumentLoad: undefined;
   ReportIssue: undefined;
   JobDetails: undefined;
+  AdminJobStatus: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
-
-// Home screen component
-function HomeScreen({ navigation }: any) {
-  const handleSignOut = async () => {
-    console.log("HomeScreen: Signing out...");
-    const { error } = await supabase.auth.signOut();
-    if (error) {
-      console.error("HomeScreen: Sign out error", error);
-      Alert.alert("Error", "Failed to sign out.");
-    }
-    // AuthProvider's onAuthStateChange will handle navigation update
-  };
-
-  // Function to manually update profile to ensure column exists
-  const fixProfiles = async () => {
-    try {
-      Alert.alert("Fixing profiles", "Attempting to ensure completed_profile column exists...");
-      
-      const { error: updateError } = await supabase
-        .from('profiles')
-        .update({ 
-          completed_profile: true,
-          updated_at: new Date().toISOString()
-        })
-        .not('first_name', 'is', null)
-        .not('last_name', 'is', null);
-        
-      if (updateError) {
-        console.error('Error updating profiles:', updateError);
-        Alert.alert("Error", `Failed to update profiles: ${updateError.message}`);
-      } else {
-        Alert.alert("Success", "Profiles updated. Restart app to apply changes.");
-      }
-    } catch (error: any) {
-      console.error('Unexpected error fixing profiles:', error);
-      Alert.alert("Error", error.message || "An unexpected error occurred");
-    }
-  };
-
-  const QUICK_ACTIONS = [
-    { title: 'Start New Pickup', icon: '🚚', route: 'NewPickup', primary: true },
-    { title: 'Create Job', icon: '📝', route: 'CreateJob', primary: true },
-    { title: 'Document Load', icon: '📄', route: 'DocumentLoad' },
-    { title: 'Report Issue', icon: '⚠️', route: 'ReportIssue' },
-    { title: 'View Job Details', icon: '📋', route: 'JobDetails' },
-  ];
-
-  return (
-    <SafeAreaView style={styles.containerHome}>
-      <View style={styles.header}>
-        <Text style={styles.titleHome}>Quick Actions</Text>
-        <TouchableOpacity onPress={handleSignOut}>
-          <Text style={styles.signOut}>Sign Out</Text>
-        </TouchableOpacity>
-      </View>
-
-      <View style={styles.grid}>
-        {QUICK_ACTIONS.map((action) => (
-          <TouchableOpacity
-            key={action.route}
-            style={[
-              styles.actionButton,
-              action.primary && styles.primaryButton,
-            ]}
-            onPress={() => navigation.navigate(action.route)}
-          >
-            <Text style={styles.actionIcon}>{action.icon}</Text>
-            <Text style={styles.actionTitle}>{action.title}</Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-      
-      {/* Developer tools - you can remove this in production */}
-      <View style={styles.developerTools}>
-        <TouchableOpacity style={styles.developerButton} onPress={fixProfiles}>
-          <Text style={styles.developerButtonText}>Fix Profile DB</Text>
-        </TouchableOpacity>
-      </View>
-    </SafeAreaView>
-  );
-}
 
 // Details screen component
 function DetailsScreen({ route }: any) {
@@ -294,6 +216,15 @@ function Navigation() {
           <Stack.Screen name="DocumentLoad" component={PlaceholderScreen} options={{ headerShown: true, headerTitle: "Document Load", headerBackTitle: "Back" }} />
           <Stack.Screen name="ReportIssue" component={PlaceholderScreen} options={{ headerShown: true, headerTitle: "Report Issue", headerBackTitle: "Back" }} />
           <Stack.Screen name="JobDetails" component={PlaceholderScreen} options={{ headerShown: true, headerTitle: "Job Details", headerBackTitle: "Back" }} />
+          
+          {/* Always include Admin screen for testing */}
+          {/* {isAdmin && ( */} 
+            <Stack.Screen 
+              name="AdminJobStatus" 
+              component={AdminJobStatusScreen} 
+              options={{ headerShown: true, headerTitle: "Admin: Job Status", headerBackTitle: "Back" }}
+            />
+          {/* )} */}
         </React.Fragment>
       );
     } else {
