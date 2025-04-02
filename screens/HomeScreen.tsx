@@ -1,19 +1,20 @@
 import React from 'react';
 import { StyleSheet, View, Text, TouchableOpacity, SafeAreaView, Alert, ScrollView } from 'react-native';
-import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthProvider';
 import { MaterialIcons, FontAwesome5, Ionicons } from '@expo/vector-icons'; // Import icon sets
+import { RootStackParamList } from '../App'; // <-- Import the type
+
 
 type IconInfo = {
   library: keyof typeof IconLibraries; // Type restricting to imported libraries
   name: string;
 };
 
-type QuickAction = {
+type Action = {
   title: string;
-  icon: IconInfo; // Use the new IconInfo type
-  route: string;
-  primary?: boolean;
+  icon: IconInfo;
+  screen?: keyof RootStackParamList; // Make screen optional, references keys from RootStackParamList
+  fontFamily?: string; // Add optional font family name
 };
 
 // Define the components for easier lookup
@@ -25,41 +26,13 @@ const IconLibraries = {
 
 // Add the Admin action directly to the list for consistent styling
 // We'll rely on navigation guards later to truly restrict access
-const QUICK_ACTIONS: QuickAction[] = [
-  { 
-    title: 'Start New Pickup', 
-    icon: { library: 'FontAwesome5', name: 'truck' }, 
-    route: 'NewPickup', 
-    primary: true 
-  },
-  { 
-    title: 'Create Job', 
-    icon: { library: 'MaterialIcons', name: 'add-circle-outline' }, 
-    route: 'CreateJob', 
-    primary: true 
-  },
-  { 
-    title: 'Document Load', 
-    icon: { library: 'Ionicons', name: 'document-text-outline' }, 
-    route: 'DocumentLoad' 
-  },
-  { 
-    title: 'Report Issue', 
-    icon: { library: 'MaterialIcons', name: 'report-problem' }, 
-    route: 'ReportIssue' 
-  },
-  { 
-    title: 'View Job Details', 
-    icon: { library: 'Ionicons', name: 'list-outline' }, 
-    route: 'JobDetails' 
-  },
-  // Add Admin action here
-  { 
-    title: 'Manage Job Status', 
-    icon: { library: 'MaterialIcons', name: 'admin-panel-settings' }, 
-    route: 'AdminJobStatus', 
-    // primary: false // Explicitly not primary
-  },
+const QUICK_ACTIONS: Action[] = [
+  { title: 'Start New Pickup', icon: { library: 'MaterialIcons', name: 'local-shipping' }, screen: 'NewPickup', fontFamily: 'Oswald-Bold' },
+  { title: 'Create New Job', icon: { library: 'MaterialIcons', name: 'add-circle-outline' }, screen: 'CreateJob', fontFamily: 'Oswald-Bold' },
+  { title: 'View Active Jobs', icon: { library: 'FontAwesome5', name: 'list-alt' }, screen: 'ActiveJobs', fontFamily: 'Inter-Regular' },
+  { title: 'Manage Drivers', icon: { library: 'MaterialIcons', name: 'people' }, screen: 'ManageDrivers' },
+  { title: 'Manage Vehicles', icon: { library: 'FontAwesome5', name: 'truck' }, screen: 'ManageVehicles' },
+  { title: 'Admin: Job Status', icon: { library: 'Ionicons', name: 'settings-outline' }, screen: 'AdminJobStatus', fontFamily: 'Inter-Regular' },
 ];
 
 // Helper function to render the correct icon
@@ -72,21 +45,27 @@ const renderIcon = (iconInfo: IconInfo, size: number, color: string) => {
 };
 
 export default function HomeScreen({ navigation }: any) {
-  // Uncomment this when ready to implement real admin checks
-  // const { isAdmin } = useAuth(); 
+  const { user, signOut } = useAuth();
 
   const handleSignOut = async () => {
     console.log("HomeScreen: Signing out...");
-    const { error } = await supabase.auth.signOut();
-    if (error) {
-      console.error("HomeScreen: Sign out error", error);
-      Alert.alert("Error", "Failed to sign out.");
+    try {
+       await signOut();
+       // Navigation should automatically switch to Auth screen via the listener in App.tsx
+    } catch(error) {
+        console.error("Sign out error in HomeScreen:", error);
+        Alert.alert("Error", "Failed to sign out.");
     }
-    // AuthProvider's onAuthStateChange will handle navigation update
   };
 
-  // Function to manually update profile to ensure column exists
-  // Removed fixProfiles function for brevity, assume it exists if needed
+  const handleActionPress = (screen: keyof RootStackParamList | undefined) => {
+    if (screen) {
+      console.log(`Navigating to: ${screen}`); // Add log
+      navigation.navigate(screen);
+    } else {
+      Alert.alert("Coming Soon", "This feature is not yet implemented.");
+    }
+  };
 
   return (
     <SafeAreaView style={styles.containerHome}>
@@ -99,20 +78,25 @@ export default function HomeScreen({ navigation }: any) {
       
       <ScrollView contentContainerStyle={styles.scrollContentContainer}>
         <View style={styles.grid}>
-          {QUICK_ACTIONS.map((action) => {
-            // Determine color - maybe admin has a different non-primary color?
-            const iconColor = action.primary ? '#007AFF' : '#495057'; 
+          {QUICK_ACTIONS.map((action, index) => {
+            const IconComponent = IconLibraries[action.icon.library];
+            // Determine the font family to use, fallback to system default
+            const titleFontFamily = action.fontFamily; // If undefined, default behavior applies
+
             return (
               <TouchableOpacity
-                key={action.route}
-                style={[
-                  styles.actionButton,
-                  action.primary && styles.primaryButton, // Admin button won't get this style
-                ]}
-                onPress={() => navigation.navigate(action.route)}
+                key={index}
+                style={styles.actionButton}
+                onPress={() => handleActionPress(action.screen)}
               >
-                {renderIcon(action.icon, 32, iconColor)}
-                <Text style={styles.actionTitle}>{action.title}</Text>
+                <IconComponent name={action.icon.name as any} size={32} color="#007AFF" style={styles.actionIcon} />
+                <Text style={[
+                  styles.actionTitle,
+                  // Conditionally apply fontFamily style
+                  titleFontFamily ? { fontFamily: titleFontFamily } : {}
+                ]}>
+                  {action.title}
+                </Text>
               </TouchableOpacity>
             );
           })}
@@ -140,39 +124,33 @@ const styles = StyleSheet.create({
   },
   scrollContentContainer: {
     padding: 16,
-    paddingBottom: 32,
+    paddingBottom: 24,
   },
   grid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'space-between',
-    marginBottom: 16,
   },
   actionButton: {
     width: '48%',
-    minHeight: 120,
     backgroundColor: 'white',
     borderRadius: 12,
-    padding: 16,
+    paddingVertical: 16,
+    paddingHorizontal: 12,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 12,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
     shadowRadius: 3,
     elevation: 2,
   },
-  primaryButton: {
-    backgroundColor: '#e7f3ff',
-    borderColor: '#007AFF',
-    borderWidth: 1,
-  },
   actionTitle: {
     fontSize: 14,
     textAlign: 'center',
     fontWeight: '500',
-    marginTop: 8, // Add some margin between icon and text
+    marginTop: 8,
   },
   signOut: {
     color: '#007AFF',
@@ -181,5 +159,8 @@ const styles = StyleSheet.create({
   titleHome: {
     fontSize: 24,
     fontWeight: 'bold',
+  },
+  actionIcon: {
+    marginRight: 12,
   },
 }); 

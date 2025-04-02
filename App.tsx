@@ -12,9 +12,14 @@ import HomeScreen from './screens/HomeScreen';
 import { AuthProvider, useAuth } from './contexts/AuthProvider';
 import React, { useEffect, useState } from 'react';
 import { supabase } from './lib/supabase';
+import { Session, User } from '@supabase/supabase-js';
+import ManageDriversScreen from './screens/ManageDriversScreen';
+import ManageVehiclesScreen from './screens/ManageVehiclesScreen';
+import ActiveJobsScreen from './screens/ActiveJobsScreen';
+import { useFonts } from 'expo-font';
 
-// Define our navigation types
-type RootStackParamList = {
+// Define AND export our navigation types
+export type RootStackParamList = {
   Auth: undefined;
   CompleteProfile: undefined;
   Home: undefined;
@@ -32,8 +37,11 @@ type RootStackParamList = {
   };
   DocumentLoad: undefined;
   ReportIssue: undefined;
-  JobDetails: undefined;
+  JobDetails: { jobId: string };
   AdminJobStatus: undefined;
+  ManageDrivers: undefined;
+  ManageVehicles: undefined;
+  ActiveJobs: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -212,10 +220,14 @@ function Navigation() {
           <Stack.Screen name="Home" component={HomeScreen} options={{ headerShown: false }} />
           <Stack.Screen name="CreateJob" component={CreateJobScreen} options={{ headerShown: true, headerTitle: "Create New Job", headerBackTitle: "Back" }} />
           <Stack.Screen name="NewPickup" component={NewPickupScreen} options={{ headerShown: true, headerTitle: "New Pickup", headerBackTitle: "Back" }} />
+          <Stack.Screen name="ManageDrivers" component={ManageDriversScreen} options={{ headerShown: true, headerTitle: "Manage Drivers", headerBackTitle: "Back" }} />
+          <Stack.Screen name="ManageVehicles" component={ManageVehiclesScreen} options={{ headerShown: true, headerTitle: "Manage Vehicles", headerBackTitle: "Back" }} />
           <Stack.Screen name="PickupConfirmation" component={PlaceholderScreen} options={{ headerShown: true, headerTitle: "Confirmation", headerBackTitle: "Back" }} />
           <Stack.Screen name="DocumentLoad" component={PlaceholderScreen} options={{ headerShown: true, headerTitle: "Document Load", headerBackTitle: "Back" }} />
           <Stack.Screen name="ReportIssue" component={PlaceholderScreen} options={{ headerShown: true, headerTitle: "Report Issue", headerBackTitle: "Back" }} />
+          <Stack.Screen name="ActiveJobs" component={ActiveJobsScreen} options={{ headerShown: true, headerTitle: "Active Jobs", headerBackTitle: "Back" }} />
           <Stack.Screen name="JobDetails" component={PlaceholderScreen} options={{ headerShown: true, headerTitle: "Job Details", headerBackTitle: "Back" }} />
+          
           
           {/* Always include Admin screen for testing */}
           {/* {isAdmin && ( */} 
@@ -252,64 +264,33 @@ function Navigation() {
 }
 
 export default function App() {
-  // Handle page refresh for web
+  // Load custom fonts
+  const [fontsLoaded, fontError] = useFonts({
+    'Inter-Regular': require('./assets/fonts/Inter-Regular.ttf'), // Verify this path/file exists
+    'Oswald-Bold': require('./assets/fonts/Oswald-Bold.ttf'),   // Verify this path/file exists
+  });
+
+  // Optional: Log font loading errors
   useEffect(() => {
-    if (Platform.OS === 'web') {
-      // Handle refresh
-      const handleRefresh = () => {
-        console.log('App: Page refresh detected, preparing...');
-        
-        // Cache critical auth data to localStorage for persistence
-        // This is a backup for the mechanisms in AuthProvider
-        try {
-          // Attempt to get the last auth value
-          AsyncStorage.getItem('supabase.auth.token')
-            .then(value => {
-              if (value) {
-                // Store to localStorage as a backup
-                localStorage.setItem('auth_backup', value);
-                console.log('App: Stored auth backup for refresh recovery');
-              }
-            })
-            .catch(e => console.error('App: Error backing up auth data', e));
-        } catch (e) {
-          console.error('App: Error in refresh handler', e);
-        }
-      };
-      
-      // For page refreshes
-      window.addEventListener('beforeunload', handleRefresh);
-      
-      return () => {
-        window.removeEventListener('beforeunload', handleRefresh);
-      };
+    if (fontError) {
+      console.error("Font Loading Error:", fontError);
+      // You might want to display an error message to the user
     }
-    return () => {};
-  }, []);
-  
-  // For session recovery on init
-  useEffect(() => {
-    if (Platform.OS === 'web') {
-      try {
-        // Check if we have a backup auth value
-        const backupAuth = localStorage.getItem('auth_backup');
-        if (backupAuth) {
-          console.log('App: Found auth backup, attempting recovery');
-          // Restore it to AsyncStorage
-          AsyncStorage.setItem('supabase.auth.token', backupAuth)
-            .then(() => {
-              console.log('App: Restored auth data from backup');
-              // Clear the backup
-              localStorage.removeItem('auth_backup');
-            })
-            .catch(e => console.error('App: Error restoring auth data', e));
-        }
-      } catch (e) {
-        console.error('App: Error checking auth backup', e);
-      }
-    }
-  }, []);
-  
+  }, [fontError]);
+
+  // Render loading indicator or null while fonts are loading
+  if (!fontsLoaded && !fontError) {
+     // Optionally return a dedicated loading screen component like AppLoading
+     // Or a simple ActivityIndicator
+    return (
+       <View style={appStyles.loadingContainer}>
+          <ActivityIndicator size="large" />
+       </View>
+    );
+    // Or return null; but this might cause a flicker
+  }
+
+  // Fonts are loaded (or errored out), render the main app
   return (
     <AuthProvider>
       <Navigation />
@@ -419,4 +400,12 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
   },
+});
+
+const appStyles = StyleSheet.create({
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  }
 });

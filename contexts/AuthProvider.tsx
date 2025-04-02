@@ -14,32 +14,27 @@ interface Profile {
   updated_at?: string;
 }
 
-const AuthContext = createContext<{
+type AuthContextType = {
   session: Session | null;
-  user: User | null; // Expose the user object
-  profile: Profile | null; // Add profile state
+  user: User | null;
+  profile: Profile | null;
   loading: boolean;
-  refreshProfile: (() => Promise<void>) | null; // Function to refresh profile
-  isAdmin: boolean; // Re-adding isAdmin - Ensure it's implemented
-}>({
-  session: null,
-  user: null,
-  profile: null,
-  loading: true,
-  refreshProfile: null,
-  isAdmin: false, // Default value
-});
+  refreshProfile: (() => Promise<void>) | null;
+  signOut: () => Promise<void>;
+  isAdmin: boolean;
+};
+
+const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
-  const [user, setUser] = useState<User | null>(null); // Store user separately
+  const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
-  const [loading, setLoading] = useState(true); // Overall loading including initial profile fetch
-  const [profileLoading, setProfileLoading] = useState(false); // Specific loading for profile fetch
-  const [initError, setInitError] = useState<string | null>(null); // Track initialization errors
-  const [isAdmin, setIsAdmin] = useState<boolean>(false); // Add isAdmin state
+  const [loading, setLoading] = useState(true);
+  const [profileLoading, setProfileLoading] = useState(false);
+  const [initError, setInitError] = useState<string | null>(null);
+  const [isAdmin, setIsAdmin] = useState<boolean>(false);
 
-  // State declarations
   const [generatorName, setGeneratorName] = useState('');
   const [generatorPhone, setGeneratorPhone] = useState('');
   const [generatorEmail, setGeneratorEmail] = useState('');
@@ -55,7 +50,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [receiverProvince, setReceiverProvince] = useState('');
   const [receiverPostalCode, setReceiverPostalCode] = useState('');
 
-  // Function to fetch profile
   const fetchProfile = useCallback(async (currentUser: User | null) => {
     if (!currentUser) {
       console.log('AuthProvider.fetchProfile: No user, clearing profile.');
@@ -66,36 +60,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setProfileLoading(true);
     
     try {
-      // Create a timeout promise that rejects after 3 seconds
       const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error('Profile fetch timeout')), 2000); // Reduced from 3000ms to 2000ms
+        setTimeout(() => reject(new Error('Profile fetch timeout')), 2000);
       });
       
-      // Create the actual query promise - First try with all fields including completed_profile
-      // If that fails, we'll fall back to just the basic fields
       const queryPromise = supabase
         .from('profiles')
         .select(`id, first_name, last_name, completed_profile, updated_at`)
         .eq('id', currentUser.id)
         .single();
         
-      // Race the two promises
       console.log(`AuthProvider.fetchProfile: Running select query with timeout for user ${currentUser.id}...`);
       
       try {
-        // First try with all columns
         const { data, error, status } = await Promise.race([
           queryPromise,
           timeoutPromise.then(() => { 
             throw new Error('Profile fetch timeout');
           })
-        ]) as any; // Type assertion needed due to race
+        ]) as any;
         
         console.log(`AuthProvider.fetchProfile: Query finished with status: ${status}, Error: ${error?.message || 'none'}`);
   
-        if (error && status !== 406) { // 406 means no rows found, which is ok
+        if (error && status !== 406) {
           if (error.message?.includes('completed_profile')) {
-            // Column doesn't exist, fall back to basic query
             console.warn('AuthProvider.fetchProfile: completed_profile column may not exist, trying fallback');
             throw new Error('Column does not exist');
           } else {
@@ -107,15 +95,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setProfile(data as Profile);
         } else {
           console.log('AuthProvider.fetchProfile: No profile found (status 406 or null data).');
-          setProfile(null); // Explicitly set to null if no profile found
+          setProfile(null);
         }
       } catch (e: any) {
-        // If we get here with a "Column does not exist" error, try the fallback
         if (e.message === 'Column does not exist') {
           console.log('AuthProvider.fetchProfile: Trying fallback without completed_profile column');
           
           try {
-            // Fallback query without completed_profile column
             const fallbackQuery = supabase
               .from('profiles')
               .select(`id, first_name, last_name, updated_at`)
@@ -129,10 +115,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               setProfile(null);
             } else if (fallbackData) {
               console.log('AuthProvider.fetchProfile: Fallback query successful', fallbackData);
-              // Convert the data to include completed_profile property
               const profileWithCompletedFlag = {
                 ...fallbackData,
-                // Set completed_profile based on whether first_name and last_name exist
                 completed_profile: !!(fallbackData.first_name && fallbackData.last_name)
               };
               setProfile(profileWithCompletedFlag as Profile);
@@ -145,22 +129,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             setProfile(null);
           }
         } else {
-          // Not a column error, just pass through
           console.error("AuthProvider.fetchProfile: Exception during fetch:", e?.message || e);
           setProfile(null);
         }
       }
     } catch (e: any) {
       console.error("AuthProvider.fetchProfile: Top-level exception:", e?.message || e);
-      // Still set profile to null on error (avoid undefined state)
       setProfile(null);
     } finally {
       console.log(`AuthProvider.fetchProfile: Setting profileLoading to false in finally block.`);
       setProfileLoading(false);
     }
-  }, []); // Empty dependency array, relies on currentUser passed in
+  }, []);
 
-  // Function exposed to consumers to manually refresh profile
   const refreshProfile = useCallback(async () => {
     console.log('AuthProvider.refreshProfile: Manual refresh requested.');
     if (user) {
@@ -172,13 +153,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } else {
       console.log('AuthProvider.refreshProfile: No user to refresh profile for.');
     }
-  }, [user, fetchProfile]); // Re-create if user or fetchProfile changes
+  }, [user, fetchProfile]);
 
-  // Effect for initial session fetch
   useEffect(() => {
     let isMounted = true;
     
-    // FAILSAFE: Set loading to false after timeout
     const failsafeTimeout = setTimeout(() => {
       if (isMounted && loading) {
         console.warn('AuthProvider: FAILSAFE TRIGGERED - Setting loading to false after timeout');
@@ -187,9 +166,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     }, 3000);
 
-    // Prevent logout during page refreshes for web
     if (Platform.OS === 'web') {
-      // Listen for beforeunload to save a flag indicating we're refreshing
       window.addEventListener('beforeunload', () => {
         try {
           localStorage.setItem('page_refreshing', 'true');
@@ -204,14 +181,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setLoading(true);
       console.log('AuthProvider.initializeAuth: Starting...');
       
-      // Check for refresh flag (web only)
       let isRefreshing = false;
       if (Platform.OS === 'web') {
         try {
           isRefreshing = localStorage.getItem('page_refreshing') === 'true';
           if (isRefreshing) {
             console.log('AuthProvider: Detected this is a page refresh');
-            // Clear the flag
             localStorage.removeItem('page_refreshing');
           }
         } catch (e) {
@@ -220,17 +195,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
       
       try {
-        // Create a timeout promise for getSession
         const sessionTimeoutPromise = new Promise((_, reject) => {
           setTimeout(() => reject(new Error('getSession timeout')), 2000);
         });
         
-        // 1. Get session from storage with timeout
         console.log('AuthProvider.initializeAuth: Calling getSession()...');
         
         let initialSession: Session | null = null;
         try {
-          // Race getSession with a timeout
           const { data } = await Promise.race([
             supabase.auth.getSession(),
             sessionTimeoutPromise.then(() => { 
@@ -241,21 +213,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           initialSession = data.session;
           console.log('AuthProvider.initializeAuth: getSession() finished. Session:', initialSession ? initialSession.user.id : 'null');
           
-          // If no session but we were refreshing, try to recover the session
           if (!initialSession && isRefreshing && Platform.OS === 'web') {
             console.log('AuthProvider: Page refresh lost session, attempting recovery...');
             
             try {
-              // Try to get user ID from local storage
               const userId = localStorage.getItem('last_user_id');
               if (userId) {
                 console.log(`AuthProvider: Found last user ID ${userId}, forcing refresh`);
-                // Force a refresh
                 const { data: refreshData, error } = await supabase.auth.refreshSession();
                 
                 if (error) {
                   console.error('AuthProvider: Session recovery failed', error);
-                  // Try to retrieve the token directly from storage as last resort
                   const storedToken = await AsyncStorage.getItem('supabase.auth.token');
                   if (storedToken) {
                     console.log('AuthProvider: Found stored token, attempting to set auth');
@@ -285,7 +253,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           }
         } catch (e: any) {
           console.error('AuthProvider.initializeAuth: getSession error or timeout:', e?.message || e);
-          // Continue without a session (treat as logged out)
           initialSession = null;
         }
         
@@ -294,12 +261,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           return;
         }
 
-        // 2. Update session and user state
         setSession(initialSession);
         const currentUser = initialSession?.user ?? null;
         setUser(currentUser);
 
-        // Store the user ID for session recovery on refresh (web only)
         if (Platform.OS === 'web' && currentUser?.id) {
           try {
             localStorage.setItem('last_user_id', currentUser.id);
@@ -308,7 +273,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             console.error('AuthProvider: Error storing user ID', e);
           }
         } else if (Platform.OS === 'web' && !currentUser) {
-          // Clear the stored user ID if logging out
           try {
             localStorage.removeItem('last_user_id');
             console.log('AuthProvider: Cleared stored user ID (logout)');
@@ -317,7 +281,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           }
         }
 
-        // 3. Check localStorage first to see if profile was already completed
         let profileCompletedInLocalStorage = false;
         if (currentUser && Platform.OS === 'web') {
           try {
@@ -326,40 +289,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             
             if (profileCompletedInLocalStorage) {
               console.log('AuthProvider.initializeAuth: Found completed profile flag in localStorage');
-              // If we know the profile is complete, we can set a minimal profile to speed up loading
               setProfile({
                 id: currentUser.id,
-                first_name: 'User', // Placeholder value
-                last_name: 'Name',  // Placeholder value
+                first_name: 'User',
+                last_name: 'Name',
                 completed_profile: true,
                 updated_at: new Date().toISOString()
               });
               
-              // Set loading to false early to show the main UI faster
               setLoading(false);
               clearTimeout(failsafeTimeout);
               
-              // Fetch the real profile in the background
               setTimeout(() => {
                 fetchProfile(currentUser).catch(console.error);
               }, 100);
               
-              return; // Exit initialization early
+              return;
             }
           } catch (e) {
             console.error('AuthProvider.initializeAuth: Error checking localStorage:', e);
-            // Continue with normal flow if localStorage check fails
           }
         }
 
-        // 4. If no localStorage flag, fetch profile as usual
         if (currentUser) {
           console.log('AuthProvider.initializeAuth: Calling fetchProfile...');
           try {
             await fetchProfile(currentUser);
           } catch (e: any) {
             console.error('AuthProvider.initializeAuth: fetchProfile error:', e?.message || e);
-            // Continue with null profile if fetch fails
             setProfile(null);
           }
         } else {
@@ -374,7 +331,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       } catch (e: any) {
         console.error("AuthProvider.initializeAuth: Unhandled error during initialization:", e?.message || e);
         setInitError(e?.message || 'Unknown initialization error');
-        // Ensure default states in case of error
         if (isMounted) {
           setSession(null);
           setUser(null);
@@ -384,7 +340,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (isMounted) {
           console.log('AuthProvider.initializeAuth: Setting loading to false in finally block.');
           setLoading(false);
-          clearTimeout(failsafeTimeout); // Clear the failsafe since we're done
+          clearTimeout(failsafeTimeout);
         } else {
           console.log('AuthProvider.initializeAuth: Component unmounted before finally block. Cannot set loading to false.');
         }
@@ -392,32 +348,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     };
 
-    // Start initialization
     initializeAuth();
 
     return () => {
       isMounted = false;
-      clearTimeout(failsafeTimeout); // Clean up failsafe timeout
+      clearTimeout(failsafeTimeout);
       
-      // Remove beforeunload event listener
       if (Platform.OS === 'web') {
         window.removeEventListener('beforeunload', () => {});
       }
       
       console.log('AuthProvider.initializeAuth: Effect cleanup.');
     };
-  }, [fetchProfile]); // Depend on fetchProfile
+  }, [fetchProfile]);
 
-  // Effect for listening to auth state changes 
   useEffect(() => {
     let isMounted = true;
     let previousUserId: string | null = null;
     let refreshInProgress = false;
 
-    // Handle window focus changes (for web)
     const handleFocusChange = async () => {
       if (Platform.OS === 'web' && isMounted && user && !refreshInProgress) {
-        // Don't refresh if we've been away less than 5 seconds (tab switch)
         if (Date.now() - lastFocusTime < 5000) {
           console.log('AuthProvider: Recent tab switch detected, skipping refresh');
           return;
@@ -426,7 +377,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         console.log('AuthProvider: Window focus changed, refreshing profile');
         refreshInProgress = true;
         
-        // Check localStorage first
         let skipProfileFetch = false;
         try {
           const storedValue = await AsyncStorage.getItem(`profile_completed_${user.id}`);
@@ -438,7 +388,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           console.error('AuthProvider: Error checking localStorage on focus:', e);
         }
         
-        // Only fetch profile if needed
         if (!skipProfileFetch) {
           try {
             await fetchProfile(user);
@@ -453,10 +402,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       lastFocusTime = Date.now();
     };
     
-    // Track when focus events happen
     let lastFocusTime = Date.now();
 
-    // Add focus/blur listeners for web
     if (Platform.OS === 'web') {
       window.addEventListener('focus', handleFocusChange);
       window.addEventListener('blur', () => {
@@ -481,21 +428,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const newUserId = newSession?.user?.id || null;
       console.log('AuthProvider.onAuthStateChange: Triggered. Event:', _event, 'New Session:', newUserId ? newUserId : 'null', 'Previous User:', previousUserId ? previousUserId : 'null');
       
-      // Special handling for same user - could be a refresh or tab switch
       if (newUserId && newUserId === previousUserId && _event !== 'SIGNED_OUT') {
         console.log('AuthProvider.onAuthStateChange: Same user detected, may be a refresh or tab switch');
         
-        // If we detected a recent focus/tab change, don't refresh
         if (Date.now() - lastFocusTime < 2000) {
           console.log('AuthProvider.onAuthStateChange: Recent tab/focus change detected, skipping refresh');
           refreshInProgress = false;
           return;
         }
         
-        // Check if we already have a profile loaded
         if (profile && (profile.completed_profile || (profile.first_name && profile.last_name))) {
           console.log('AuthProvider.onAuthStateChange: Profile already complete, skipping refresh');
-          // Profile already exists and is complete, no need to refresh
           refreshInProgress = false;
           return;
         } else {
@@ -503,13 +446,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
       }
       
-      // Update session/user state
       setSession(newSession);
       const newUser = newSession?.user ?? null;
-      previousUserId = newUser?.id || null; // Update previous user ID
+      previousUserId = newUser?.id || null;
       setUser(newUser);
 
-      // Store the user ID for session recovery on refresh (web only)
       if (Platform.OS === 'web' && newUser?.id) {
         try {
           localStorage.setItem('last_user_id', newUser.id);
@@ -518,7 +459,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           console.error('AuthProvider: Error storing user ID', e);
         }
       } else if (Platform.OS === 'web' && !newUser) {
-        // Clear the stored user ID if logging out
         try {
           localStorage.removeItem('last_user_id');
           console.log('AuthProvider: Cleared stored user ID (logout)');
@@ -527,22 +467,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
       }
 
-      // Fetch profile for the new user (or clear it if logged out)
       if (newUser) {
         console.log('AuthProvider.onAuthStateChange: Calling fetchProfile for new user...');
-        setProfileLoading(true); // Indicate profile might be changing
+        setProfileLoading(true);
         try {
           await fetchProfile(newUser);
         } catch (e: any) {
           console.error('AuthProvider.onAuthStateChange: fetchProfile error:', e?.message || e);
-          // On error, ensure profile is null
           setProfile(null);
         } finally {
-          // Ensure profileLoading is false even if fetchProfile threw an error
           setProfileLoading(false);
         }
       } else {
-        // No user (logout), clear profile
         console.log('AuthProvider.onAuthStateChange: No user, clearing profile.');
         setProfile(null);
         setProfileLoading(false);
@@ -557,18 +493,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       console.log('AuthProvider.onAuthStateChange: Unsubscribing listener.');
       subscription.unsubscribe();
       
-      // Remove web event listeners
       if (Platform.OS === 'web') {
         window.removeEventListener('focus', handleFocusChange);
         window.removeEventListener('blur', () => {});
       }
     };
-  }, [fetchProfile]); // Depend on fetchProfile
+  }, [fetchProfile]);
 
-  // Determine the final loading state (initial load OR subsequent profile load)
   const combinedLoading = loading || (session !== null && profileLoading);
 
-  // Log the state being provided
   console.log(`AuthProvider: Rendering context. session=${!!session}, user=${!!user}, profile=${!!profile}, loading=${loading}, profileLoading=${profileLoading}, combinedLoading=${combinedLoading}, initError=${!!initError}`);
 
   const handleSaveJob = async () => {
@@ -580,21 +513,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setLoading(true);
     
     try {
-      // First create the job
       const { data: jobData, error: jobError } = await supabase
         .from('jobs')
         .insert({
           title: `Job for ${receiverCompany}`,
           description: `Transportation from ${pickupCity} to ${receiverCity}`,
           status: 'draft',
-          created_by: session?.user.id // Check for null session
+          created_by: session?.user.id
         })
         .select()
         .single();
         
       if (jobError) throw jobError;
       
-      // Insert generator info
       const { error: generatorError } = await supabase
         .from('job_generators')
         .insert({
@@ -606,7 +537,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         
       if (generatorError) throw generatorError;
       
-      // Insert pickup location
       const { error: pickupError } = await supabase
         .from('pickup_locations')
         .insert({
@@ -619,7 +549,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         
       if (pickupError) throw pickupError;
       
-      // Insert receiver info
       const { error: receiverError } = await supabase
         .from('job_receivers')
         .insert({
@@ -633,7 +562,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         
       if (receiverError) throw receiverError;
       
-      // Success! Show message and navigate back
       alert('Job created successfully!');
       
     } catch (error: any) {
@@ -645,7 +573,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const validateForm = () => {
-    // Check all required fields
     return (
       generatorName && 
       generatorPhone && 
@@ -661,18 +588,35 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     );
   };
 
+  const signOut = async () => {
+    setLoading(true);
+    const { error } = await supabase.auth.signOut();
+    if (error) {
+      console.error("AuthProvider: Sign out error", error);
+    }
+  };
+
+  const value: AuthContextType = {
+    session,
+    user,
+    profile,
+    loading,
+    refreshProfile,
+    signOut,
+    isAdmin,
+  };
+
   return (
-    <AuthContext.Provider value={{ session, user, profile, loading, refreshProfile, isAdmin }}>
+    <AuthContext.Provider value={value}>
       {children}
     </AuthContext.Provider>
   );
 }
 
-// Update useAuth hook type
-export const useAuth = (): {
-  session: Session | null;
-  user: User | null;
-  profile: Profile | null;
-  loading: boolean;
-  refreshProfile: (() => Promise<void>) | null;
-} => useContext(AuthContext); 
+export const useAuth = (): AuthContextType => {
+  const context = useContext(AuthContext);
+  if (context === undefined) {
+    throw new Error('useAuth must be used within an AuthProvider');
+  }
+  return context;
+}; 

@@ -73,24 +73,16 @@ export default function AdminJobStatusScreen({ navigation }: any) {
   const handleStatusChange = async (jobId: string, newStatus: string) => {
     console.log(`Attempting to update job ${jobId} to status ${newStatus}`);
     setUpdatingJobId(jobId);
-    let updateError = null;
-
     try {
       const { error } = await supabase
         .from('jobs')
         .update({ status: newStatus, updated_at: new Date().toISOString() })
-        .eq('id', jobId)
-        .select(); // Add select to potentially get confirmation or error details
+        .eq('id', jobId);
 
-      if (error) {
-        // Throw the error to be caught by the catch block
-        throw error;
-      }
+      if (error) throw error;
 
-      // If no error, update was successful
-      console.log(`Successfully updated job ${jobId} in Supabase.`);
-      
-      // Update the status locally ONLY AFTER successful Supabase update
+      console.log(`Successfully updated job ${jobId}`);
+      // Update the status locally for immediate UI feedback
       setJobs(prevJobs =>
         prevJobs.map(job =>
           job.id === jobId ? { ...job, status: newStatus } : job
@@ -99,14 +91,10 @@ export default function AdminJobStatusScreen({ navigation }: any) {
       Alert.alert('Success', `Job status updated to ${newStatus}`);
 
     } catch (error: any) {
-      updateError = error; // Store error to handle in finally
       console.error(`Error updating job ${jobId}:`, error.message);
-      console.error('Detailed Update Error:', error); // Log the full error
       Alert.alert('Error', `Failed to update job status: ${error.message}`);
     } finally {
       setUpdatingJobId(null);
-      // Optional: If there was an error, maybe refresh data to revert optimistic UI?
-      // if (updateError) fetchJobsForAdmin(); 
     }
   };
 

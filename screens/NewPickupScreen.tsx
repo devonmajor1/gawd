@@ -13,81 +13,49 @@ import {
 import { Picker } from '@react-native-picker/picker';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthProvider';
+import { Database } from '../types/database.types'; // Make sure this path is correct
+
+// Define types from generated schema
+type Job = Database['public']['Tables']['jobs']['Row'] & {
+    job_generators: Database['public']['Tables']['job_generators']['Row'][] | null;
+    pickup_locations: Database['public']['Tables']['pickup_locations']['Row'][] | null;
+    job_receivers: Database['public']['Tables']['job_receivers']['Row'][] | null;
+};
+type Driver = Database['public']['Tables']['drivers']['Row'];
+type Vehicle = Database['public']['Tables']['vehicles']['Row'];
+type PickupInsert = Database['public']['Tables']['pickups']['Insert'];
 
 // Define material types for contaminated soil
 type MaterialType = 'SOIL' | 'AGGREGATE' | 'SLUDGE' | 'OTHER';
 
-// Pickup details that will be saved to the database
+// Adjusted PickupDetails to match PickupInsert structure more closely
 type PickupDetails = {
-  // Job reference
   job_id: string | null;
-  
-  // Pickup information
   pickup_date_time: string;
-  
-  // Load information
   load_profile_id: string;
   material_type: MaterialType;
   quantity_loaded: number;
   quantity_unit: string;
   load_authorizer_name: string;
   load_authorizer_tel: string;
-  
-  // Transport information
-  driver_id: number | null;
-  vehicle_id: number | null;
-  
-  // Additional notes
+  driver_id: number | null; // Keep as number to match picker value
+  vehicle_id: number | null; // Keep as number to match picker value
   notes: string;
 };
 
-// Job type with related information
-type Job = {
+// Job type matching the expected fetched structure
+type FormattedJob = {
   id: string;
   title: string;
   description: string | null;
   status: string;
   created_at: string;
-  
-  // Related entities
-  generator: {
-    id: string;
-    contact_name: string;
-    telephone: string;
-    email: string | null;
-  } | null;
-  
-  pickup_location: {
-    id: string;
-    address: string;
-    city: string;
-    province: string;
-    postal_code: string;
-  } | null;
-  
-  receiver: {
-    id: string;
-    company_name: string;
-    address: string;
-    city: string;
-    province: string;
-    postal_code: string;
-  } | null;
+  generator: Database['public']['Tables']['job_generators']['Row'] | null;
+  pickup_location: Database['public']['Tables']['pickup_locations']['Row'] | null;
+  receiver: Database['public']['Tables']['job_receivers']['Row'] | null;
 };
 
-// Driver information
-type Driver = {
-  id: number;
-  name: string;
-  license_number: string;
-};
-
-// Vehicle information
-type Vehicle = {
-  id: number;
-  plate_number: string;
-  type: string;
-};
+// Driver and Vehicle types (already defined via Database types)
 
 export default function NewPickupScreen({ navigation }: any) {
   const { user } = useAuth();
@@ -97,13 +65,15 @@ export default function NewPickupScreen({ navigation }: any) {
   const totalSteps = 3;
   
   // State for jobs and selection
-  const [jobs, setJobs] = useState<Job[]>([]);
-  const [selectedJob, setSelectedJob] = useState<Job | null>(null);
+  const [jobs, setJobs] = useState<FormattedJob[]>([]);
+  const [selectedJob, setSelectedJob] = useState<FormattedJob | null>(null);
   const [jobsLoading, setJobsLoading] = useState(true);
   
   // State for drivers and vehicles
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+  const [transportLoading, setTransportLoading] = useState(true); // Loading for drivers/vehicles
+  const [fetchError, setFetchError] = useState<string | null>(null); // Shared error state
   
   // State for pickup details
   const [pickupDetails, setPickupDetails] = useState<PickupDetails>({
@@ -120,18 +90,18 @@ export default function NewPickupScreen({ navigation }: any) {
     notes: '',
   });
 
-  // Fetch jobs on component mount
+  // Fetch jobs, drivers, and vehicles on component mount
   useEffect(() => {
+    setFetchError(null); // Reset errors on mount/re-render
     fetchJobs();
-    fetchDriversAndVehicles();
-  }, []);
+    fetchDriversAndVehicles(); // Fetch both concurrently
+  }, []); // Runs only once on mount
 
-  // Fetch jobs from Supabase with related information
+  // Fetch jobs from Supabase
   const fetchJobs = async () => {
-    console.log('Starting fetchJobs...'); // Log start
+    console.log('Starting fetchJobs...');
     setJobsLoading(true);
     try {
-      // Fetch jobs with related entities using Supabase's nested selects
       const { data, error } = await supabase
         .from('jobs')
         .select(`
@@ -140,63 +110,79 @@ export default function NewPickupScreen({ navigation }: any) {
           pickup_locations (*),
           job_receivers (*)
         `)
-        .eq('status', 'active');
-        
-      console.log('Supabase response:', { data, error }); // Log Supabase response
-        
+        .eq('status', 'active'); // Fetch only active jobs
+
       if (error) throw error;
-      
+
       if (data) {
-        // Transform data to match our Job type
-        const formattedJobs: Job[] = data.map(job => {
-          // Log each raw job object
-          console.log('Processing raw job:', job);
-          return {
-            id: job.id,
-            title: job.title,
-            description: job.description,
-            status: job.status,
-            created_at: job.created_at,
-            generator: job.job_generators?.[0] || null,
-            pickup_location: job.pickup_locations?.[0] || null,
-            receiver: job.job_receivers?.[0] || null
-          };
-        });
-        
-        console.log('Formatted jobs:', formattedJobs); // Log formatted jobs
+        // Transform data to match FormattedJob type
+        const formattedJobs: FormattedJob[] = data.map(job => ({
+          id: job.id,
+          title: job.title,
+          description: job.description,
+          status: job.status,
+          created_at: job.created_at,
+          // Take the first related record if available
+          generator: job.job_generators?.[0] || null,
+          pickup_location: job.pickup_locations?.[0] || null,
+          receiver: job.job_receivers?.[0] || null
+        }));
         setJobs(formattedJobs);
       }
     } catch (error: any) {
-      console.error('Error fetching jobs:', error.message);
-      console.error('Detailed fetch error:', error); // Log detailed error
-      Alert.alert('Error', 'Failed to load jobs. Please try again.');
+      console.error('Error fetching jobs:', error);
+      setFetchError('Failed to load jobs. Please check connection and try again.');
+      // Don't Alert here, show error in UI
     } finally {
       setJobsLoading(false);
-      console.log('Finished fetchJobs. jobsLoading should be false now.'); // Log finish
     }
   };
 
-  // Fetch drivers and vehicles
+  // Fetch drivers and vehicles from Supabase
   const fetchDriversAndVehicles = async () => {
+    if (!user) {
+        setFetchError("Cannot load transport options: User not logged in.");
+        setTransportLoading(false);
+        return;
+    }
+    console.log('Fetching drivers and vehicles...');
+    setTransportLoading(true);
     try {
-      // In a real app, you would fetch these from your database
-      // This is placeholder data
-      setDrivers([
-        { id: 1, name: 'John Smith', license_number: 'D12345' },
-        { id: 2, name: 'Jane Doe', license_number: 'D67890' },
-      ]);
-      
-      setVehicles([
-        { id: 1, plate_number: 'ABC123', type: 'Truck' },
-        { id: 2, plate_number: 'XYZ789', type: 'Tanker' },
-      ]);
+      // Fetch drivers
+      const { data: driversData, error: driversError } = await supabase
+        .from('drivers')
+        .select('*')
+        .eq('user_id', user.id) // Fetch only user's drivers
+        .eq('is_active', true) // Fetch only active drivers
+        .order('name');
+
+      if (driversError) throw driversError;
+      setDrivers(driversData || []);
+      console.log('Fetched drivers:', driversData);
+
+      // Fetch vehicles
+      const { data: vehiclesData, error: vehiclesError } = await supabase
+        .from('vehicles')
+        .select('*')
+        .eq('user_id', user.id) // Fetch only user's vehicles
+        .eq('is_active', true) // Fetch only active vehicles
+        .order('plate_number');
+
+      if (vehiclesError) throw vehiclesError;
+      setVehicles(vehiclesData || []);
+      console.log('Fetched vehicles:', vehiclesData);
+
     } catch (error: any) {
       console.error('Error fetching drivers/vehicles:', error.message);
+      setFetchError(`Failed to load drivers/vehicles: ${error.message}`);
+      // Don't Alert here, show error in UI
+    } finally {
+      setTransportLoading(false);
     }
   };
 
   // Handle selecting a job
-  const handleJobSelect = (job: Job) => {
+  const handleJobSelect = (job: FormattedJob) => {
     setSelectedJob(job);
     setPickupDetails({
       ...pickupDetails,
@@ -282,11 +268,10 @@ export default function NewPickupScreen({ navigation }: any) {
     setIsSubmitting(true);
     
     try {
-      // Create the pickup in the database
-      const { data, error } = await supabase
-        .from('pickups')
-        .insert({
+      // Prepare data for insertion, matching the 'pickups' table structure
+      const pickupDataToInsert: PickupInsert = {
           job_id: pickupDetails.job_id,
+          // Assuming other IDs are handled differently or not needed for insert
           pickup_date_time: pickupDetails.pickup_date_time,
           load_profile_id: pickupDetails.load_profile_id,
           material_type: pickupDetails.material_type,
@@ -294,11 +279,15 @@ export default function NewPickupScreen({ navigation }: any) {
           quantity_unit: pickupDetails.quantity_unit,
           load_authorizer_name: pickupDetails.load_authorizer_name,
           load_authorizer_tel: pickupDetails.load_authorizer_tel,
-          driver_id: pickupDetails.driver_id,
-          vehicle_id: pickupDetails.vehicle_id,
-          status: 'submitted',
-          // Add additional fields as needed
-        })
+          driver_id: pickupDetails.driver_id, // Ensure this is number | null
+          vehicle_id: pickupDetails.vehicle_id, // Ensure this is number | null
+          status: 'submitted', // Or another initial status like 'pending'
+          // Add other fields from PickupInsert if necessary, e.g. created_by: user.id
+      };
+
+      const { data, error } = await supabase
+        .from('pickups')
+        .insert(pickupDataToInsert) // Use the prepared object
         .select()
         .single();
       
@@ -528,46 +517,70 @@ export default function NewPickupScreen({ navigation }: any) {
       
       {renderSelectedJobInfo()}
       
+      {/* Display Loading or Error State for Transport Data */}
+      {transportLoading && (
+          <View style={styles.centeredMessage}>
+              <ActivityIndicator size="small" color="#007AFF" />
+              <Text style={styles.loadingText}>Loading drivers & vehicles...</Text>
+          </View>
+      )}
+      {fetchError && !transportLoading && ( // Show error if not loading
+          <Text style={styles.errorText}>{fetchError}</Text>
+      )}
+
+      {/* Driver Picker */}
       <View style={styles.inputGroup}>
         <Text style={styles.label}>Driver*</Text>
         <View style={styles.pickerContainer}>
           <Picker
             style={styles.picker}
             selectedValue={pickupDetails.driver_id}
-            onValueChange={(value) => handleChange('driver_id', value)}
+            onValueChange={(itemValue) => handleChange('driver_id', itemValue)}
+            enabled={!transportLoading && drivers.length > 0} // Disable if loading or no drivers
           >
-            <Picker.Item label="Select Driver" value={null} />
+            <Picker.Item label="Select Driver..." value={null} />
             {drivers.map(driver => (
-              <Picker.Item 
-                key={driver.id} 
-                label={`${driver.name} (License: ${driver.license_number})`} 
-                value={driver.id} 
+              <Picker.Item
+                key={driver.id}
+                // Display name and license number for clarity
+                label={`${driver.name} (${driver.license_number || 'No License'})`}
+                value={driver.id} // Value is the numeric ID
               />
             ))}
           </Picker>
         </View>
+         {drivers.length === 0 && !transportLoading && (
+            <Text style={styles.noDataPickerText}>No active drivers found. Add one in 'Manage Drivers'.</Text>
+         )}
       </View>
-      
+
+      {/* Vehicle Picker */}
       <View style={styles.inputGroup}>
         <Text style={styles.label}>Vehicle*</Text>
         <View style={styles.pickerContainer}>
           <Picker
             style={styles.picker}
             selectedValue={pickupDetails.vehicle_id}
-            onValueChange={(value) => handleChange('vehicle_id', value)}
+            onValueChange={(itemValue) => handleChange('vehicle_id', itemValue)}
+            enabled={!transportLoading && vehicles.length > 0} // Disable if loading or no vehicles
           >
-            <Picker.Item label="Select Vehicle" value={null} />
+            <Picker.Item label="Select Vehicle..." value={null} />
             {vehicles.map(vehicle => (
-              <Picker.Item 
-                key={vehicle.id} 
-                label={`${vehicle.type} (${vehicle.plate_number})`} 
-                value={vehicle.id} 
+              <Picker.Item
+                key={vehicle.id}
+                // Display plate and type for clarity
+                label={`${vehicle.plate_number} (${vehicle.type || 'Unknown Type'})`}
+                value={vehicle.id} // Value is the numeric ID
               />
             ))}
           </Picker>
         </View>
+         {vehicles.length === 0 && !transportLoading && (
+            <Text style={styles.noDataPickerText}>No active vehicles found. Add one in 'Manage Vehicles'.</Text>
+         )}
       </View>
-      
+
+      {/* Notes Input */}
       <View style={styles.inputGroup}>
         <Text style={styles.label}>Additional Notes</Text>
         <TextInput
@@ -671,6 +684,12 @@ export default function NewPickupScreen({ navigation }: any) {
           {renderNavigationButtons()}
         </View>
       </ScrollView>
+      
+      {fetchError && !jobsLoading && !transportLoading && ( // Display general fetch error prominently if needed
+          <View style={styles.errorBanner}>
+             <Text style={styles.errorBannerText}>{fetchError}</Text>
+          </View>
+       )}
     </SafeAreaView>
   );
 }
@@ -916,5 +935,43 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: 'bold',
+  },
+  centeredMessage: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 15,
+    marginBottom: 10,
+  },
+  loadingText: {
+    marginLeft: 10,
+    fontSize: 14,
+    color: '#6c757d',
+  },
+  noDataPickerText: {
+      fontSize: 12,
+      color: '#6c757d',
+      marginTop: 4,
+      paddingLeft: 5,
+  },
+  errorText: { // General error text style
+    color: '#dc3545',
+    textAlign: 'center',
+    marginVertical: 10,
+    paddingHorizontal: 16,
+  },
+  errorBanner: { // Style for a more prominent error display
+     backgroundColor: '#f8d7da',
+     padding: 10,
+     marginHorizontal: 16,
+     marginTop: 10,
+     borderRadius: 8,
+     borderWidth: 1,
+     borderColor: '#f5c6cb',
+  },
+  errorBannerText: {
+     color: '#721c24',
+     textAlign: 'center',
+     fontSize: 14,
   },
 });
