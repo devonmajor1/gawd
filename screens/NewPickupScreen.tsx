@@ -184,10 +184,23 @@ export default function NewPickupScreen({ navigation }: any) {
   // Handle selecting a job
   const handleJobSelect = (job: FormattedJob) => {
     setSelectedJob(job);
+
+    // Pre-populate authorizer fields from the selected job's generator info, if available
+    const generatorContactName = job.generator?.contact_name ?? ''; // Use generator's contact name
+    const generatorTelephone = job.generator?.telephone ?? '';    // Use generator's telephone
+
     setPickupDetails({
       ...pickupDetails,
       job_id: job.id,
+      // Set authorizer fields using generator info as default
+      load_authorizer_name: generatorContactName,
+      load_authorizer_tel: generatorTelephone,
+      // Reset other fields potentially? Or keep existing input? Decide based on desired UX.
+      // For example, you might want to keep notes if the user selected a different job.
     });
+
+    // Consider automatically moving to the next step if desired UX
+    // nextStep(); // Uncomment if you want to auto-advance after job selection
   };
 
   // Handle form field changes

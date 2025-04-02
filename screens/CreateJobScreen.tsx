@@ -18,15 +18,26 @@ import { useAuth } from '../contexts/AuthProvider';
 type JobDetails = {
   title: string;
   description: string;
-  // Generator information
+  // Generator information - Updated
+  generator_company_name: string; // Added
   generator_contact_name: string;
   generator_telephone: string;
   generator_email: string;
+  generator_address: string;      // Added
+  generator_city: string;         // Added
+  generator_province: string;     // Added
+  generator_postal_code: string;  // Added
+  // Soil Quality Contact Info - Added
+  generator_soil_quality_contact_name: string;
+  generator_soil_quality_contact_tel: string;
+  generator_soil_quality_contact_email: string;
   // Pickup location
   pickup_address: string;
   pickup_city: string;
   pickup_province: string;
   pickup_postal_code: string;
+  pickup_latitude: string;
+  pickup_longitude: string;
   // Receiver information
   receiver_company_name: string;
   receiver_address: string;
@@ -68,15 +79,26 @@ export default function CreateJobScreen({ navigation }: any) {
   const [jobDetails, setJobDetails] = useState<JobDetails>({
     title: '',
     description: '',
-    // Generator information
+    // Generator information - Updated
+    generator_company_name: '', // Added
     generator_contact_name: '',
     generator_telephone: '',
     generator_email: '',
+    generator_address: '',      // Added
+    generator_city: '',         // Added
+    generator_province: '',     // Added
+    generator_postal_code: '',  // Added
+    // Soil Quality Contact Info - Added
+    generator_soil_quality_contact_name: '',
+    generator_soil_quality_contact_tel: '',
+    generator_soil_quality_contact_email: '',
     // Pickup location
     pickup_address: '',
     pickup_city: '',
     pickup_province: '',
     pickup_postal_code: '',
+    pickup_latitude: '',
+    pickup_longitude: '',
     // Receiver information
     receiver_company_name: '',
     receiver_address: '',
@@ -112,7 +134,12 @@ export default function CreateJobScreen({ navigation }: any) {
         console.log('Step 1 validation passed');
         return true;
         
-      case 2: // Generator Information
+      case 2: // Generator Information - Updated Validation
+        if (!jobDetails.generator_company_name.trim()) {
+          Alert.alert('Error', 'Please enter the generator company name');
+          console.log('Step 2 validation failed: missing company name');
+          return false;
+        }
         if (!jobDetails.generator_contact_name.trim()) {
           Alert.alert('Error', 'Please enter generator contact name');
           console.log('Step 2 validation failed: missing contact name');
@@ -123,6 +150,14 @@ export default function CreateJobScreen({ navigation }: any) {
           console.log('Step 2 validation failed: missing telephone');
           return false;
         }
+         if (!jobDetails.generator_address.trim() || !jobDetails.generator_city.trim() ||
+             !jobDetails.generator_province.trim() || !jobDetails.generator_postal_code.trim()) {
+            Alert.alert('Error', 'Please fill in all required generator address fields (*)');
+            console.log('Step 2 validation failed: missing address fields');
+            return false;
+         }
+         // Soil quality contacts are optional, no validation needed unless specific format required
+
         console.log('Step 2 validation passed');
         return true;
         
@@ -143,8 +178,7 @@ export default function CreateJobScreen({ navigation }: any) {
         
         if (!jobDetails.pickup_address.trim() || !jobDetails.pickup_city.trim() || 
             !jobDetails.pickup_province.trim() || !jobDetails.pickup_postal_code.trim()) {
-          Alert.alert('Error', 'Please fill in all pickup location fields');
-          console.log('Step 3 validation failed: missing pickup fields');
+          Alert.alert('Error', 'Please fill in all required pickup location fields (*)');
           return false;
         }
         if (!jobDetails.receiver_company_name.trim()) {
@@ -154,10 +188,22 @@ export default function CreateJobScreen({ navigation }: any) {
         }
         if (!jobDetails.receiver_address.trim() || !jobDetails.receiver_city.trim() || 
             !jobDetails.receiver_province.trim() || !jobDetails.receiver_postal_code.trim()) {
-          Alert.alert('Error', 'Please fill in all receiver location fields');
-          console.log('Step 3 validation failed: missing receiver fields');
+          Alert.alert('Error', 'Please fill in all required receiver fields (*)');
           return false;
         }
+
+        // Optional validation for Lat/Lon format (simple check for now)
+        const lat = parseFloat(jobDetails.pickup_latitude);
+        const lon = parseFloat(jobDetails.pickup_longitude);
+        if (jobDetails.pickup_latitude.trim() && (isNaN(lat) || lat < -90 || lat > 90)) {
+            Alert.alert('Error', 'Invalid Latitude. Must be a number between -90 and 90.');
+            return false;
+        }
+        if (jobDetails.pickup_longitude.trim() && (isNaN(lon) || lon < -180 || lon > 180)) {
+            Alert.alert('Error', 'Invalid Longitude. Must be a number between -180 and 180.');
+            return false;
+        }
+
         console.log('Step 3 validation passed');
         return true;
       
@@ -213,15 +259,24 @@ export default function CreateJobScreen({ navigation }: any) {
       const jobId = jobData.id;
       console.log('Job created with ID:', jobId);
       
-      // 2. Add generator information
-      console.log('Adding generator information');
+      // 2. Add generator information - Updated Insert
+      console.log('Adding generator information with address and soil contacts');
       const { error: generatorError } = await supabase
         .from('job_generators')
         .insert({
           job_id: jobId,
+          // Map state fields to the expected database column names
+          company_name: jobDetails.generator_company_name, // Use company_name column
           contact_name: jobDetails.generator_contact_name,
           telephone: jobDetails.generator_telephone,
-          email: jobDetails.generator_email || null
+          email: jobDetails.generator_email || null,
+          address: jobDetails.generator_address,             // Added
+          city: jobDetails.generator_city,                 // Added
+          province: jobDetails.generator_province,           // Added
+          postal_code: jobDetails.generator_postal_code,     // Added
+          soil_quality_contact_name: jobDetails.generator_soil_quality_contact_name || null, // Added
+          soil_quality_contact_tel: jobDetails.generator_soil_quality_contact_tel || null,   // Added
+          soil_quality_contact_email: jobDetails.generator_soil_quality_contact_email || null, // Added
         });
       
       if (generatorError) {
@@ -230,7 +285,11 @@ export default function CreateJobScreen({ navigation }: any) {
       }
       
       // 3. Add pickup location
-      console.log('Adding pickup location');
+      console.log('Adding pickup location with Lat/Lon');
+      // Convert lat/lon strings to numbers, or null if empty/invalid
+      const latitudeValue = jobDetails.pickup_latitude.trim() ? parseFloat(jobDetails.pickup_latitude) : null;
+      const longitudeValue = jobDetails.pickup_longitude.trim() ? parseFloat(jobDetails.pickup_longitude) : null;
+
       const { error: pickupError } = await supabase
         .from('pickup_locations')
         .insert({
@@ -238,7 +297,9 @@ export default function CreateJobScreen({ navigation }: any) {
           address: jobDetails.pickup_address,
           city: jobDetails.pickup_city,
           province: jobDetails.pickup_province,
-          postal_code: jobDetails.pickup_postal_code
+          postal_code: jobDetails.pickup_postal_code,
+          latitude: latitudeValue,
+          longitude: longitudeValue,
         });
       
       if (pickupError) {
@@ -309,11 +370,65 @@ export default function CreateJobScreen({ navigation }: any) {
     </View>
   );
 
-  // Render Generator Information Step
+  // Render Generator Information Step - Cleaned JSX
   const renderGeneratorInformationStep = () => (
     <View style={styles.stepContainer}>
       <Text style={styles.stepTitle}>Generator Information</Text>
-      
+
+      <View style={styles.inputGroup}>
+        <Text style={styles.label}>Company Name*</Text>
+        <TextInput
+          style={styles.input}
+          value={jobDetails.generator_company_name}
+          onChangeText={(text) => handleChange('generator_company_name', text)}
+          placeholder="Enter generating company name"
+        />
+      </View>
+
+      <View style={styles.inputGroup}>
+        <Text style={styles.label}>Address*</Text>
+        <TextInput
+          style={styles.input}
+          value={jobDetails.generator_address}
+          onChangeText={(text) => handleChange('generator_address', text)}
+          placeholder="Enter street address"
+        />
+      </View>
+
+      <View style={styles.rowInputs}>
+        <View style={[styles.inputGroup, { flex: 1, marginRight: 8 }]}>
+          <Text style={styles.label}>City*</Text>
+          <TextInput
+            style={styles.input}
+            value={jobDetails.generator_city}
+            onChangeText={(text) => handleChange('generator_city', text)}
+            placeholder="City"
+          />
+        </View>
+        <View style={[styles.inputGroup, { flex: 1, marginLeft: 8 }]}>
+          <Text style={styles.label}>Province*</Text>
+          <TextInput
+            style={styles.input}
+            value={jobDetails.generator_province}
+            onChangeText={(text) => handleChange('generator_province', text)}
+            placeholder="Province"
+          />
+        </View>
+      </View>
+
+      <View style={styles.inputGroup}>
+        <Text style={styles.label}>Postal Code*</Text>
+        <TextInput
+          style={styles.input}
+          value={jobDetails.generator_postal_code}
+          onChangeText={(text) => handleChange('generator_postal_code', text)}
+          placeholder="Enter postal code"
+        />
+      </View>
+
+      <View style={styles.separator} />
+
+      <Text style={styles.subHeader}>Primary Contact</Text>
       <View style={styles.inputGroup}>
         <Text style={styles.label}>Contact Name*</Text>
         <TextInput
@@ -323,7 +438,7 @@ export default function CreateJobScreen({ navigation }: any) {
           placeholder="Enter contact name"
         />
       </View>
-      
+
       <View style={styles.inputGroup}>
         <Text style={styles.label}>Phone Number*</Text>
         <TextInput
@@ -334,7 +449,7 @@ export default function CreateJobScreen({ navigation }: any) {
           keyboardType="phone-pad"
         />
       </View>
-      
+
       <View style={styles.inputGroup}>
         <Text style={styles.label}>Email</Text>
         <TextInput
@@ -342,6 +457,42 @@ export default function CreateJobScreen({ navigation }: any) {
           value={jobDetails.generator_email}
           onChangeText={(text) => handleChange('generator_email', text)}
           placeholder="Enter email address"
+          keyboardType="email-address"
+          autoCapitalize="none"
+        />
+      </View>
+
+      <View style={styles.separator} />
+
+      <Text style={styles.subHeader}>Soil Quality Contact (Optional)</Text>
+      <View style={styles.inputGroup}>
+        <Text style={styles.label}>Contact Name</Text>
+        <TextInput
+          style={styles.input}
+          value={jobDetails.generator_soil_quality_contact_name}
+          onChangeText={(text) => handleChange('generator_soil_quality_contact_name', text)}
+          placeholder="Enter soil quality contact name"
+        />
+      </View>
+
+      <View style={styles.inputGroup}>
+        <Text style={styles.label}>Telephone</Text>
+        <TextInput
+          style={styles.input}
+          value={jobDetails.generator_soil_quality_contact_tel}
+          onChangeText={(text) => handleChange('generator_soil_quality_contact_tel', text)}
+          placeholder="Enter soil quality contact phone"
+          keyboardType="phone-pad"
+        />
+      </View>
+
+      <View style={styles.inputGroup}>
+        <Text style={styles.label}>Email</Text>
+        <TextInput
+          style={styles.input}
+          value={jobDetails.generator_soil_quality_contact_email}
+          onChangeText={(text) => handleChange('generator_soil_quality_contact_email', text)}
+          placeholder="Enter soil quality contact email"
           keyboardType="email-address"
           autoCapitalize="none"
         />
@@ -394,6 +545,29 @@ export default function CreateJobScreen({ navigation }: any) {
           onChangeText={(text) => handleChange('pickup_postal_code', text)}
           placeholder="Enter postal code"
         />
+      </View>
+      
+      <View style={styles.rowInputs}>
+          <View style={[styles.inputGroup, { flex: 1, marginRight: 8 }]}>
+              <Text style={styles.label}>Latitude</Text>
+              <TextInput
+                  style={styles.input}
+                  value={jobDetails.pickup_latitude}
+                  onChangeText={(text) => handleChange('pickup_latitude', text)}
+                  placeholder="e.g., 43.6532"
+                  keyboardType="numeric"
+              />
+          </View>
+          <View style={[styles.inputGroup, { flex: 1, marginLeft: 8 }]}>
+              <Text style={styles.label}>Longitude</Text>
+              <TextInput
+                  style={styles.input}
+                  value={jobDetails.pickup_longitude}
+                  onChangeText={(text) => handleChange('pickup_longitude', text)}
+                  placeholder="e.g., -79.3832"
+                  keyboardType="numeric"
+              />
+          </View>
       </View>
       
       <Text style={[styles.stepTitle, { marginTop: 24 }]}>Receiver Information</Text>
@@ -695,5 +869,17 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: 'bold',
     marginTop: 16,
+  },
+  separator: {
+    height: 1,
+    backgroundColor: '#e0e0e0',
+    marginVertical: 20,
+  },
+  subHeader: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#495057',
+    marginBottom: 12,
+    marginTop: 8,
   },
 }); 

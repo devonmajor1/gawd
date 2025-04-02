@@ -17,6 +17,8 @@ import ManageDriversScreen from './screens/ManageDriversScreen';
 import ManageVehiclesScreen from './screens/ManageVehiclesScreen';
 import ActiveJobsScreen from './screens/ActiveJobsScreen';
 import { useFonts } from 'expo-font';
+import PickupListScreen from './screens/PickupListScreen';
+import HaulingRecordViewScreen from './screens/HaulingRecordViewScreen';
 
 // Define AND export our navigation types
 export type RootStackParamList = {
@@ -42,6 +44,8 @@ export type RootStackParamList = {
   ManageDrivers: undefined;
   ManageVehicles: undefined;
   ActiveJobs: undefined;
+  PickupList: undefined;
+  HaulingRecordView: { pickupId: string };
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -227,6 +231,8 @@ function Navigation() {
           <Stack.Screen name="ReportIssue" component={PlaceholderScreen} options={{ headerShown: true, headerTitle: "Report Issue", headerBackTitle: "Back" }} />
           <Stack.Screen name="ActiveJobs" component={ActiveJobsScreen} options={{ headerShown: true, headerTitle: "Active Jobs", headerBackTitle: "Back" }} />
           <Stack.Screen name="JobDetails" component={PlaceholderScreen} options={{ headerShown: true, headerTitle: "Job Details", headerBackTitle: "Back" }} />
+          <Stack.Screen name="PickupList" component={PickupListScreen} options={{ headerShown: true, headerTitle: "Pickup History", headerBackTitle: "Back" }} />
+          <Stack.Screen name="HaulingRecordView" component={HaulingRecordViewScreen} options={{ headerShown: true, headerTitle: "Hauling Record View", headerBackTitle: "Back" }} />
           
           
           {/* Always include Admin screen for testing */}

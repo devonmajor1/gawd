@@ -30,6 +30,7 @@ const QUICK_ACTIONS: Action[] = [
   { title: 'Start New Pickup', icon: { library: 'MaterialIcons', name: 'local-shipping' }, screen: 'NewPickup', fontFamily: 'Oswald-Bold' },
   { title: 'Create New Job', icon: { library: 'MaterialIcons', name: 'add-circle-outline' }, screen: 'CreateJob', fontFamily: 'Oswald-Bold' },
   { title: 'View Active Jobs', icon: { library: 'FontAwesome5', name: 'list-alt' }, screen: 'ActiveJobs', fontFamily: 'Inter-Regular' },
+  { title: 'View Pickup History', icon: { library: 'FontAwesome5', name: 'history' }, screen: 'PickupList' },
   { title: 'Manage Drivers', icon: { library: 'MaterialIcons', name: 'people' }, screen: 'ManageDrivers' },
   { title: 'Manage Vehicles', icon: { library: 'FontAwesome5', name: 'truck' }, screen: 'ManageVehicles' },
   { title: 'Admin: Job Status', icon: { library: 'Ionicons', name: 'settings-outline' }, screen: 'AdminJobStatus', fontFamily: 'Inter-Regular' },
