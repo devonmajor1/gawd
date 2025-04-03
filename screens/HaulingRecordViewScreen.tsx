@@ -159,10 +159,13 @@ export default function HaulingRecordViewScreen() {
     return (
         <SafeAreaView style={styles.container}>
             <ScrollView contentContainerStyle={styles.content}>
-                {/* Use Job Title as main header? */}
+                {/* Render only the main title initially */}
                 <Text style={styles.mainTitle}>{display(job?.title, 'Hauling Record')}</Text>
 
-                {/* Section: Generator (Project Area) */}
+                {/* --- Temporarily Comment Out All Sections --- */}
+
+                {/*
+                // Section: Generator (Project Area)
                 <View style={styles.section}>
                     <Text style={styles.sectionTitle}>Generator (Project Area)</Text>
                     <View style={styles.fieldRow}>
@@ -177,7 +180,6 @@ export default function HaulingRecordViewScreen() {
                         <Text style={styles.label}>Email:</Text>
                         <Text style={styles.value}>{display(generator?.email)}</Text>
                     </View>
-                    {/* Added Generator Company Info */}
                      <View style={styles.separator} />
                      <View style={styles.fieldRow}>
                         <Text style={styles.label}>Generating Company:</Text>
@@ -186,25 +188,26 @@ export default function HaulingRecordViewScreen() {
                     <View style={styles.fieldRow}>
                         <Text style={styles.label}>Address:</Text>
                         <Text style={styles.value}>
-                           {display(generator?.address)}, {display(generator?.city)}, {display(generator?.province)} {display(generator?.postal_code)}
+                           {`${display(generator?.address)}, ${display(generator?.city)}, ${display(generator?.province)} ${display(generator?.postal_code)}`}
                         </Text>
                     </View>
                 </View>
+                */}
 
-                {/* Section: Generating Site (Project Area) */}
+                {/*
+                // Section: Generating Site (Project Area)
                 <View style={styles.section}>
                     <Text style={styles.sectionTitle}>Generating Site (Project Area)</Text>
                      <View style={styles.fieldRow}>
                         <Text style={styles.label}>Pick-up Location:</Text>
                         <Text style={styles.value}>
-                            {display(pickupLocation?.address)}, {display(pickupLocation?.city)}, {display(pickupLocation?.province)} {display(pickupLocation?.postal_code)}
+                            {`${display(pickupLocation?.address)}, ${display(pickupLocation?.city)}, ${display(pickupLocation?.province)} ${display(pickupLocation?.postal_code)}`}
                         </Text>
                     </View>
                     <View style={styles.fieldRow}>
                         <Text style={styles.label}>Date/Time Loaded:</Text>
                         <Text style={styles.value}>{displayDate(pickupData.pickup_date_time)}</Text>
                     </View>
-                    {/* Added Lat/Lon */}
                     <View style={styles.fieldRow}>
                         <Text style={styles.label}>Lat.:</Text>
                         <Text style={styles.value}>{displayCoord(pickupLocation?.latitude)}</Text>
@@ -212,13 +215,15 @@ export default function HaulingRecordViewScreen() {
                         <Text style={styles.value}>{displayCoord(pickupLocation?.longitude)}</Text>
                     </View>
                 </View>
+                */}
 
-                {/* Section: Load Information */}
+                {/*
+                // Section: Load Information
                 <View style={styles.section}>
                     <Text style={styles.sectionTitle}>Load Information</Text>
                      <View style={styles.fieldRow}>
                         <Text style={styles.label}>Quantity Loaded:</Text>
-                        <Text style={styles.value}>{display(pickupData.quantity_loaded)} {display(pickupData.quantity_unit)}</Text>
+                        <Text style={styles.value}>{`${display(pickupData.quantity_loaded)} ${display(pickupData.quantity_unit)}`}</Text>
                     </View>
                     <View style={styles.fieldRow}>
                         <Text style={styles.label}>Material Type:</Text>
@@ -228,7 +233,6 @@ export default function HaulingRecordViewScreen() {
                         <Text style={styles.label}>Load Profile ID:</Text>
                         <Text style={styles.value}>{display(pickupData.load_profile_id)}</Text>
                     </View>
-                     {/* Added Soil Quality Contact */}
                     <View style={styles.separator} />
                     <Text style={styles.subHeader}>(For Soil Quality Info)</Text>
                      <View style={styles.fieldRow}>
@@ -244,13 +248,15 @@ export default function HaulingRecordViewScreen() {
                         <Text style={styles.value}>{display(generator?.soil_quality_contact_email)}</Text>
                     </View>
                 </View>
+                */}
 
-                {/* Section: Transporter */}
+                {/*
+                // Section: Transporter
                 <View style={styles.section}>
                     <Text style={styles.sectionTitle}>Transporter</Text>
                     <View style={styles.fieldRow}>
                         <Text style={styles.label}>Transport Company:</Text>
-                        <Text style={styles.value}>{display(job?.transport_company)}</Text> {/* From Job */}
+                        <Text style={styles.value}>{display(job?.transport_company)}</Text>
                     </View>
                     <View style={styles.fieldRow}>
                         <Text style={styles.label}>Driver Name:</Text>
@@ -265,8 +271,10 @@ export default function HaulingRecordViewScreen() {
                         <Text style={styles.value}>{display(vehicle?.type)}</Text>
                     </View>
                 </View>
+                */}
 
-                {/* Section: Receiver */}
+                {/*
+                // Section: Receiver
                 <View style={styles.section}>
                     <Text style={styles.sectionTitle}>Receiver</Text>
                      <View style={styles.fieldRow}>
@@ -276,16 +284,18 @@ export default function HaulingRecordViewScreen() {
                      <View style={styles.fieldRow}>
                         <Text style={styles.label}>Address:</Text>
                         <Text style={styles.value}>
-                           {display(receiver?.address)}, {display(receiver?.city)}, {display(receiver?.province)} {display(receiver?.postal_code)}
+                           {`${display(receiver?.address)}, ${display(receiver?.city)}, ${display(receiver?.province)} ${display(receiver?.postal_code)}`}
                         </Text>
                     </View>
                      <View style={styles.fieldRow}>
                         <Text style={styles.label}>Date/Time Unloaded:</Text>
-                        <Text style={styles.value}>{displayDate(pickupData.unloaded_at)}</Text> {/* New field */}
+                        <Text style={styles.value}>{displayDate(pickupData.unloaded_at)}</Text>
                     </View>
                 </View>
+                */}
 
-                {/* Section: Authorization (Mapping to Soil Contact) */}
+                {/*
+                 // Section: Authorization
                  <View style={styles.section}>
                     <Text style={styles.sectionTitle}>Authorization</Text>
                      <View style={styles.fieldRow}>
@@ -298,17 +308,20 @@ export default function HaulingRecordViewScreen() {
                     </View>
                      <View style={styles.fieldRow}>
                         <Text style={styles.label}>Signature:</Text>
-                         <Text style={styles.value}>____________________</Text> {/* Placeholder */}
+                         <Text style={styles.value}>____________________</Text>
                     </View>
                  </View>
+                 */}
 
-                  {/* Section: Notes */}
+                 {/*
+                  // Section: Notes
                   {pickupData.notes && (
                     <View style={[styles.section, styles.noBorder]}>
                         <Text style={styles.sectionTitle}>Notes</Text>
                         <Text style={styles.value}>{pickupData.notes}</Text>
                     </View>
                   )}
+                 */}
 
             </ScrollView>
         </SafeAreaView>

@@ -24,9 +24,23 @@ const IconLibraries = {
   Ionicons,
 };
 
-// Add the Admin action directly to the list for consistent styling
-// We'll rely on navigation guards later to truly restrict access
-const QUICK_ACTIONS: Action[] = [
+// --- Define Screen Permissions ---
+// Map Screen names (keys from RootStackParamList) to allowed roles
+const screenPermissions: { [key in keyof RootStackParamList]?: string[] } = {
+  'NewPickup': ['driver'], // Only drivers can start a new pickup
+  'CreateJob': ['admin', 'manager'], // Only admin/manager can create jobs
+  'ActiveJobs': ['admin', 'manager', 'driver'], // All these roles can view active jobs
+  'PickupList': ['admin', 'manager', 'driver'], // All these roles can view history
+  'ManageDrivers': ['admin', 'manager'], // Only admin/manager can manage drivers
+  'ManageVehicles': ['admin', 'manager'], // Only admin/manager can manage vehicles
+  'AdminJobStatus': ['admin'], // Only admin can access this
+  // Add other screens from RootStackParamList if they need specific permissions
+  // Screens not listed here (like 'Home', 'Auth', 'ProfileSetup') are implicitly accessible
+  // Or you can define a default policy (e.g., deny all not listed).
+};
+
+// List of all possible actions
+const ALL_QUICK_ACTIONS: Action[] = [
   { title: 'Start New Pickup', icon: { library: 'MaterialIcons', name: 'local-shipping' }, screen: 'NewPickup', fontFamily: 'Oswald-Bold' },
   { title: 'Create New Job', icon: { library: 'MaterialIcons', name: 'add-circle-outline' }, screen: 'CreateJob', fontFamily: 'Oswald-Bold' },
   { title: 'View Active Jobs', icon: { library: 'FontAwesome5', name: 'list-alt' }, screen: 'ActiveJobs', fontFamily: 'Inter-Regular' },
@@ -46,7 +60,19 @@ const renderIcon = (iconInfo: IconInfo, size: number, color: string) => {
 };
 
 export default function HomeScreen({ navigation }: any) {
-  const { user, signOut } = useAuth();
+  const { user, role, signOut } = useAuth();
+
+  // --- Helper Function to Check Access ---
+  const canAccess = (screenName: keyof RootStackParamList | undefined): boolean => {
+    // If the action doesn't navigate anywhere, allow it (or handle differently)
+    if (!screenName) return true;
+    // If the screen isn't in our permissions list, default to accessible (change if needed)
+    if (!screenPermissions[screenName]) return true;
+    // If no role, deny access to protected screens
+    if (!role) return false;
+    // Check if the user's role is included in the allowed roles for this screen
+    return screenPermissions[screenName]?.includes(role) ?? false;
+  };
 
   const handleSignOut = async () => {
     console.log("HomeScreen: Signing out...");
@@ -68,9 +94,14 @@ export default function HomeScreen({ navigation }: any) {
     }
   };
 
+  // --- Filter actions based on role BEFORE rendering ---
+  const accessibleActions = ALL_QUICK_ACTIONS.filter(action => canAccess(action.screen));
+
   return (
     <SafeAreaView style={styles.containerHome}>
       <View style={styles.header}>
+        {/* Display role for debugging/info */}
+        <Text style={styles.roleText}>Role: {role || 'None'}</Text>
         <Text style={styles.titleHome}>Quick Actions</Text>
         <TouchableOpacity onPress={handleSignOut}>
           <Text style={styles.signOut}>Sign Out</Text>
@@ -79,7 +110,7 @@ export default function HomeScreen({ navigation }: any) {
       
       <ScrollView contentContainerStyle={styles.scrollContentContainer}>
         <View style={styles.grid}>
-          {QUICK_ACTIONS.map((action, index) => {
+          {accessibleActions.map((action, index) => {
             const IconComponent = IconLibraries[action.icon.library];
             // Determine the font family to use, fallback to system default
             const titleFontFamily = action.fontFamily; // If undefined, default behavior applies
@@ -101,6 +132,10 @@ export default function HomeScreen({ navigation }: any) {
               </TouchableOpacity>
             );
           })}
+           {/* Optional: Show message if no actions are available */}
+           {accessibleActions.length === 0 && (
+             <Text style={styles.noActionsText}>No actions available for your role.</Text>
+           )}
         </View>
         
       </ScrollView>
@@ -118,7 +153,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 10, // Adjust padding if needed
     backgroundColor: 'white',
     borderBottomWidth: 1,
     borderBottomColor: '#eee',
@@ -160,8 +196,24 @@ const styles = StyleSheet.create({
   titleHome: {
     fontSize: 24,
     fontWeight: 'bold',
+    textAlign: 'center', // Center title if role text pushes it
+    flex: 1, // Allow title to take space
   },
   actionIcon: {
-    marginRight: 12,
+    // marginRight: 12,
   },
+  roleText: { // Added style for displaying role
+     fontSize: 12,
+     color: '#6c757d',
+     position: 'absolute', // Position it if needed, or keep inline
+     left: 16,
+     bottom: -15, // Adjust position
+  },
+  noActionsText: { // Added style
+     width: '100%',
+     textAlign: 'center',
+     marginTop: 30,
+     fontSize: 16,
+     color: '#6c757d',
+  }
 }); 

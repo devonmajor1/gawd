@@ -10,6 +10,7 @@ interface Profile {
   first_name: string | null;
   last_name: string | null;
   completed_profile: boolean | null; // Flag to track if profile was ever completed
+  role: string | null; // Added role property
   // Add other profile fields as needed
   updated_at?: string;
 }
@@ -18,6 +19,7 @@ type AuthContextType = {
   session: Session | null;
   user: User | null;
   profile: Profile | null;
+  role: string | null;
   loading: boolean;
   refreshProfile: (() => Promise<void>) | null;
   signOut: () => Promise<void>;
@@ -30,6 +32,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
+  const [role, setRole] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [profileLoading, setProfileLoading] = useState(false);
   const [initError, setInitError] = useState<string | null>(null);
@@ -52,12 +55,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const fetchProfile = useCallback(async (currentUser: User | null) => {
     if (!currentUser) {
-      console.log('AuthProvider.fetchProfile: No user, clearing profile.');
+      console.log('AuthProvider.fetchProfile: No user, clearing profile and role.');
       setProfile(null);
+      setRole(null);
       return;
     }
     console.log(`AuthProvider.fetchProfile: Fetching profile for user ${currentUser.id}...`);
     setProfileLoading(true);
+    setRole(null);
     
     try {
       const timeoutPromise = new Promise((_, reject) => {
@@ -66,7 +71,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       
       const queryPromise = supabase
         .from('profiles')
-        .select(`id, first_name, last_name, completed_profile, updated_at`)
+        .select(`id, first_name, last_name, completed_profile, role, updated_at`)
         .eq('id', currentUser.id)
         .single();
         
@@ -86,21 +91,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           if (error.message?.includes('completed_profile')) {
             console.warn('AuthProvider.fetchProfile: completed_profile column may not exist, trying fallback');
             throw new Error('Column does not exist');
+          } else if (error.message?.includes('role')) {
+            console.warn('AuthProvider.fetchProfile: role column may not exist, trying fallback without role');
+            throw new Error('Role column does not exist');
           } else {
             console.error('AuthProvider.fetchProfile: Error fetching profile', error);
             setProfile(null);
+            setRole(null);
           }
         } else if (data) {
           console.log('AuthProvider.fetchProfile: Profile fetched successfully', data);
           setProfile(data as Profile);
+          setRole(data.role);
         } else {
           console.log('AuthProvider.fetchProfile: No profile found (status 406 or null data).');
           setProfile(null);
+          setRole(null);
         }
       } catch (e: any) {
-        if (e.message === 'Column does not exist') {
-          console.log('AuthProvider.fetchProfile: Trying fallback without completed_profile column');
-          
+        if (e.message === 'Column does not exist' || e.message === 'Role column does not exist') {
+          console.log('AuthProvider.fetchProfile: Trying fallback without specific columns (role/completed_profile)');
           try {
             const fallbackQuery = supabase
               .from('profiles')
@@ -113,29 +123,36 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             if (fallbackError && fallbackError.code !== '406') {
               console.error('AuthProvider.fetchProfile: Error in fallback query', fallbackError);
               setProfile(null);
+              setRole(null);
             } else if (fallbackData) {
               console.log('AuthProvider.fetchProfile: Fallback query successful', fallbackData);
-              const profileWithCompletedFlag = {
+              const profileWithDefaults = {
                 ...fallbackData,
-                completed_profile: !!(fallbackData.first_name && fallbackData.last_name)
+                completed_profile: !!(fallbackData.first_name && fallbackData.last_name),
+                role: null
               };
-              setProfile(profileWithCompletedFlag as Profile);
+              setProfile(profileWithDefaults as Profile);
+              setRole(null);
             } else {
               console.log('AuthProvider.fetchProfile: No profile found in fallback query');
               setProfile(null);
+              setRole(null);
             }
           } catch (fallbackError) {
             console.error('AuthProvider.fetchProfile: Exception in fallback query', fallbackError);
             setProfile(null);
+            setRole(null);
           }
         } else {
           console.error("AuthProvider.fetchProfile: Exception during fetch:", e?.message || e);
           setProfile(null);
+          setRole(null);
         }
       }
     } catch (e: any) {
       console.error("AuthProvider.fetchProfile: Top-level exception:", e?.message || e);
       setProfile(null);
+      setRole(null);
     } finally {
       console.log(`AuthProvider.fetchProfile: Setting profileLoading to false in finally block.`);
       setProfileLoading(false);
@@ -479,8 +496,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setProfileLoading(false);
         }
       } else {
-        console.log('AuthProvider.onAuthStateChange: No user, clearing profile.');
+        console.log('AuthProvider.onAuthStateChange: No user, clearing profile and role.');
         setProfile(null);
+        setRole(null);
         setProfileLoading(false);
       }
       
@@ -600,6 +618,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     session,
     user,
     profile,
+    role,
     loading,
     refreshProfile,
     signOut,
