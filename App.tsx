@@ -16,7 +16,6 @@ import { Session, User } from '@supabase/supabase-js';
 import ManageDriversScreen from './screens/ManageDriversScreen';
 import ManageVehiclesScreen from './screens/ManageVehiclesScreen';
 import ActiveJobsScreen from './screens/ActiveJobsScreen';
-import { useFonts } from 'expo-font';
 import PickupListScreen from './screens/PickupListScreen';
 import HaulingRecordViewScreen from './screens/HaulingRecordViewScreen';
 
@@ -270,32 +269,6 @@ function Navigation() {
 }
 
 export default function App() {
-  // Load custom fonts
-  const [fontsLoaded, fontError] = useFonts({
-    'Inter-Regular': require('./assets/fonts/Inter-Regular.ttf'), // Verify this path/file exists
-    'Oswald-Bold': require('./assets/fonts/Oswald-Bold.ttf'),   // Verify this path/file exists
-  });
-
-  // Optional: Log font loading errors
-  useEffect(() => {
-    if (fontError) {
-      console.error("Font Loading Error:", fontError);
-      // You might want to display an error message to the user
-    }
-  }, [fontError]);
-
-  // Render loading indicator or null while fonts are loading
-  if (!fontsLoaded && !fontError) {
-     // Optionally return a dedicated loading screen component like AppLoading
-     // Or a simple ActivityIndicator
-    return (
-       <View style={appStyles.loadingContainer}>
-          <ActivityIndicator size="large" />
-       </View>
-    );
-    // Or return null; but this might cause a flicker
-  }
-
   // Fonts are loaded (or errored out), render the main app
   return (
     <AuthProvider>
@@ -409,9 +382,10 @@ const styles = StyleSheet.create({
 });
 
 const appStyles = StyleSheet.create({
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  }
+  // REMOVED: loadingContainer style if it was only for font loading
+  // loadingContainer: {
+  //   flex: 1,
+  //   justifyContent: 'center',
+  //   alignItems: 'center',
+  // }
 });

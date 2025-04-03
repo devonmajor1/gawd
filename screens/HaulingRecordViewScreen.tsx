@@ -162,10 +162,10 @@ export default function HaulingRecordViewScreen() {
                 {/* Render only the main title initially */}
                 <Text style={styles.mainTitle}>{display(job?.title, 'Hauling Record')}</Text>
 
-                {/* --- Temporarily Comment Out All Sections --- */}
+                
 
-                {/*
-                // Section: Generator (Project Area)
+                {
+                
                 <View style={styles.section}>
                     <Text style={styles.sectionTitle}>Generator (Project Area)</Text>
                     <View style={styles.fieldRow}>
@@ -192,10 +192,10 @@ export default function HaulingRecordViewScreen() {
                         </Text>
                     </View>
                 </View>
-                */}
+                }
 
-                {/*
-                // Section: Generating Site (Project Area)
+                {
+                
                 <View style={styles.section}>
                     <Text style={styles.sectionTitle}>Generating Site (Project Area)</Text>
                      <View style={styles.fieldRow}>
@@ -215,10 +215,10 @@ export default function HaulingRecordViewScreen() {
                         <Text style={styles.value}>{displayCoord(pickupLocation?.longitude)}</Text>
                     </View>
                 </View>
-                */}
+                }
 
-                {/*
-                // Section: Load Information
+                {
+                
                 <View style={styles.section}>
                     <Text style={styles.sectionTitle}>Load Information</Text>
                      <View style={styles.fieldRow}>
@@ -248,43 +248,20 @@ export default function HaulingRecordViewScreen() {
                         <Text style={styles.value}>{display(generator?.soil_quality_contact_email)}</Text>
                     </View>
                 </View>
-                */}
+                }
 
-                {/*
-                // Section: Transporter
+                {
+                
                 <View style={styles.section}>
-                    <Text style={styles.sectionTitle}>Transporter</Text>
+                    <Text style={styles.sectionTitle}>Receiver (Destination)</Text>
                     <View style={styles.fieldRow}>
-                        <Text style={styles.label}>Transport Company:</Text>
-                        <Text style={styles.value}>{display(job?.transport_company)}</Text>
-                    </View>
-                    <View style={styles.fieldRow}>
-                        <Text style={styles.label}>Driver Name:</Text>
-                        <Text style={styles.value}>{display(driver?.name)}</Text>
-                    </View>
-                    <View style={styles.fieldRow}>
-                        <Text style={styles.label}>License Plate:</Text>
-                        <Text style={styles.value}>{display(vehicle?.plate_number)}</Text>
-                    </View>
-                     <View style={styles.fieldRow}>
-                        <Text style={styles.label}>Vehicle Type:</Text>
-                        <Text style={styles.value}>{display(vehicle?.type)}</Text>
-                    </View>
-                </View>
-                */}
-
-                {/*
-                // Section: Receiver
-                <View style={styles.section}>
-                    <Text style={styles.sectionTitle}>Receiver</Text>
-                     <View style={styles.fieldRow}>
-                        <Text style={styles.label}>Receiving Company:</Text>
+                        <Text style={styles.label}>Company Name:</Text>
                         <Text style={styles.value}>{display(receiver?.company_name)}</Text>
                     </View>
-                     <View style={styles.fieldRow}>
-                        <Text style={styles.label}>Address:</Text>
+                    <View style={styles.fieldRow}>
+                        <Text style={styles.label}>Receiving Site:</Text>
                         <Text style={styles.value}>
-                           {`${display(receiver?.address)}, ${display(receiver?.city)}, ${display(receiver?.province)} ${display(receiver?.postal_code)}`}
+                            {`${display(receiver?.address)}, ${display(receiver?.city)}, ${display(receiver?.province)} ${display(receiver?.postal_code)}`}
                         </Text>
                     </View>
                      <View style={styles.fieldRow}>
@@ -292,36 +269,52 @@ export default function HaulingRecordViewScreen() {
                         <Text style={styles.value}>{displayDate(pickupData.unloaded_at)}</Text>
                     </View>
                 </View>
-                */}
+                }
 
-                {/*
-                 // Section: Authorization
-                 <View style={styles.section}>
-                    <Text style={styles.sectionTitle}>Authorization</Text>
-                     <View style={styles.fieldRow}>
-                        <Text style={styles.label}>Authorizer Name:</Text>
-                         <Text style={styles.value}>{display(generator?.soil_quality_contact_name)}</Text>
+                {
+                
+                <View style={styles.section}>
+                    <Text style={styles.sectionTitle}>Transportation</Text>
+                    <View style={styles.fieldRow}>
+                        <Text style={styles.label}>Transportation Company:</Text>
+                        {/* Assuming transport_company is on the jobs table */}
+                        <Text style={styles.value}>{display(job?.transport_company)}</Text>
                     </View>
                      <View style={styles.fieldRow}>
-                        <Text style={styles.label}>Tel:</Text>
-                         <Text style={styles.value}>{display(generator?.soil_quality_contact_tel)}</Text>
+                        <Text style={styles.label}>Driver's Name:</Text>
+                        <Text style={styles.value}>{display(driver?.name)}</Text>
                     </View>
-                     <View style={styles.fieldRow}>
-                        <Text style={styles.label}>Signature:</Text>
-                         <Text style={styles.value}>____________________</Text>
+                    <View style={styles.fieldRow}>
+                        <Text style={styles.label}>License #:</Text>
+                        <Text style={styles.value}>{display(driver?.license_number)}</Text>
                     </View>
-                 </View>
-                 */}
+                    <View style={styles.separator} />
+                    <View style={styles.fieldRow}>
+                        <Text style={styles.label}>Vehicle Plate #:</Text>
+                        <Text style={styles.value}>{display(vehicle?.plate_number)}</Text>
+                    </View>
+                    <View style={styles.fieldRow}>
+                        <Text style={styles.label}>Vehicle Type:</Text>
+                        <Text style={styles.value}>{display(vehicle?.type)}</Text>
+                    </View>
+                </View>
+                }
 
-                 {/*
-                  // Section: Notes
-                  {pickupData.notes && (
-                    <View style={[styles.section, styles.noBorder]}>
-                        <Text style={styles.sectionTitle}>Notes</Text>
-                        <Text style={styles.value}>{pickupData.notes}</Text>
-                    </View>
-                  )}
-                 */}
+                {
+                
+                <View style={styles.section}>
+                    <Text style={styles.sectionTitle}>Notes</Text>
+                    <Text style={styles.value}>{display(pickupData.notes)}</Text>
+                </View>
+                }
+
+                {
+                
+                <View style={styles.section}>
+                    <Text style={styles.sectionTitle}>Status</Text>
+                    <Text style={styles.value}>{display(pickupData.status)}</Text>
+                </View>
+                }
 
             </ScrollView>
         </SafeAreaView>
