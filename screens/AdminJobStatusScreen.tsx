@@ -23,7 +23,8 @@ type Job = {
   // Add other fields if needed for display
 };
 
-const JOB_STATUSES = ['draft', 'active', 'inactive', 'completed', 'cancelled']; // Define possible statuses
+// Define only the statuses allowed in the admin dropdown
+const JOB_STATUSES = ['active', 'inactive']; // Previously: ['draft', 'active', 'inactive', 'completed', 'cancelled'];
 
 export default function AdminJobStatusScreen({ navigation }: any) {
   // TODO: Ensure useAuth provides an isAdmin flag or similar check
@@ -112,15 +113,20 @@ export default function AdminJobStatusScreen({ navigation }: any) {
         ) : (
           <View style={styles.pickerWrapper}>
             <Picker
+              // If item.status is 'draft' or 'completed', the picker will likely default
+              // to showing the first available option ('active') initially.
               selectedValue={item.status}
               style={styles.picker}
               onValueChange={(itemValue) => {
-                if (itemValue !== item.status) {
+                // Only update if the value changes (prevents re-triggering on initial render)
+                // and if the new value is one of the allowed ones.
+                if (itemValue !== item.status && JOB_STATUSES.includes(itemValue)) {
                   handleStatusChange(item.id, itemValue);
                 }
               }}
-              mode="dropdown" // Or "dialog"
+              mode="dialog"
             >
+              {/* This map will now only create items for 'active' and 'inactive' */}
               {JOB_STATUSES.map(status => (
                 <Picker.Item key={status} label={status} value={status} style={styles.pickerItem}/>
               ))}
@@ -208,7 +214,7 @@ const styles = StyleSheet.create({
     color: '#6c757d',
   },
   statusContainer: {
-    minWidth: 130, // Ensure enough space for picker
+    minWidth: 130, // Keep minimum width for the container
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -216,15 +222,20 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#ced4da',
     borderRadius: 8,
-    overflow: 'hidden', // Helps contain the picker style on some platforms
+    overflow: 'hidden', // Keep this for now, might help contain native style
+    width: 130, // Set the width on the wrapper instead of the picker
+    justifyContent: 'center', // Center picker vertically if needed
   },
   picker: {
-    height: 40,
-    width: 130,
-    backgroundColor: '#fff',
+    // REMOVED: height: 40,
+    // REMOVED: width: 130,
+    // REMOVED: backgroundColor: '#fff',
+    // Keep width on the wrapper (pickerWrapper)
   },
   pickerItem: {
     fontSize: 14, // Adjust font size if needed
+    // Add specific background color here if needed for items,
+    // but often better to rely on native styling
   },
   emptyText: {
     textAlign: 'center',

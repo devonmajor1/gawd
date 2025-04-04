@@ -880,6 +880,7 @@ const styles = StyleSheet.create({
     padding: 12,
     fontSize: 16,
     backgroundColor: '#fff',
+    minHeight: 50,
   },
   pickerContainer: {
     borderWidth: 1,
@@ -887,10 +888,10 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     backgroundColor: '#fff',
     overflow: 'hidden',
+    minHeight: 50,
+    justifyContent: 'center',
   },
   picker: {
-    height: 50,
-    width: '100%',
   },
   textArea: {
     minHeight: 100,
@@ -967,13 +968,13 @@ const styles = StyleSheet.create({
       marginTop: 4,
       paddingLeft: 5,
   },
-  errorText: { // General error text style
+  errorText: {
     color: '#dc3545',
     textAlign: 'center',
     marginVertical: 10,
     paddingHorizontal: 16,
   },
-  errorBanner: { // Style for a more prominent error display
+  errorBanner: {
      backgroundColor: '#f8d7da',
      padding: 10,
      marginHorizontal: 16,

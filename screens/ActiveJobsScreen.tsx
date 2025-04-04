@@ -102,17 +102,9 @@ export default function ActiveJobsScreen() {
     // fetchActiveJobs will be called by useEffect because 'refreshing' state changes its dependency list
   }, []);
 
-  // Handle pressing a job item
-  const handleJobPress = (jobId: string) => {
-    console.log('Navigating to JobDetails with ID:', jobId);
-    // Navigate to JobDetailsScreen, passing jobId
-    // Make sure JobDetailsScreen exists and accepts 'jobId' param
-    navigation.navigate('JobDetails', { jobId: jobId });
-  };
-
   // Render item for the FlatList
   const renderJobItem = ({ item }: { item: FetchedJob }) => (
-    <TouchableOpacity style={styles.jobItem} onPress={() => handleJobPress(item.id)}>
+    <TouchableOpacity style={styles.jobItem} /* onPress={() => handleJobPress(item.id)} */ >
       <View style={styles.jobItemHeader}>
          <Text style={styles.jobTitle}>{item.title}</Text>
          <Text style={styles.jobDate}>
@@ -129,7 +121,7 @@ export default function ActiveJobsScreen() {
           <Text style={styles.jobDetail}>
               To: {item.job_receivers[0].company_name}
           </Text>
-      )}
+       )}
        {item.job_generators?.[0] && (
           <Text style={styles.jobDetail}>
               Generator Contact: {item.job_generators[0].contact_name}
